@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<incidents format="6" by="lint 9.0.0" type="incidents">
+
+    <incident
+        id="AndroidGradlePluginVersion"
+        severity="warning"
+        message="A newer version of Gradle than 9.3.1 is available: 9.7.1">
+        <fix-replace
+            description="Update to 9.7.1"
+            oldString="9.3.1"
+            replacement="9.7.1"
+            priority="0"/>
+        <location
+            file="$HOME/Desktop/comraid/comraid-Android/gradle/wrapper/gradle-wrapper.properties"
+            line="3"
+            column="17"
+            startOffset="81"
+            endLine="3"
+            endColumn="80"
+            endOffset="144"/>
+    </incident>
+
+    <incident
+        id="GradleDependency"
+        severity="warning"
+        message="A newer version of androidx.core:core-ktx than 1.18.0 is available: 1.19.0">
+        <fix-replace
+            description="Change to 1.19.0"
+            family="Update versions"
+            oldString="1.18.0"
+            replacement="1.19.0"
+            priority="0"/>
+        <location
+            file="${:comraid*projectDir}/build.gradle.kts"
+            line="27"
+            column="18"
+            startOffset="483"
+            endLine="27"
+            endColumn="49"
+            endOffset="514"/>
+    </incident>
+
+</incidents>

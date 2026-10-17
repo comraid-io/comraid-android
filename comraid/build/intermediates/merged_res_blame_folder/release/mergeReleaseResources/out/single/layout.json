@@ -1,0 +1,38 @@
+[
+    {
+        "merged": "com.comraide.android.comraid-release-11:/layout/notification_action.xml",
+        "source": "com.comraide.android.comraid-core-1.18.0-2:/layout/notification_action.xml"
+    },
+    {
+        "merged": "com.comraide.android.comraid-release-11:/layout/notification_template_part_time.xml",
+        "source": "com.comraide.android.comraid-core-1.18.0-2:/layout/notification_template_part_time.xml"
+    },
+    {
+        "merged": "com.comraide.android.comraid-release-11:/layout/custom_dialog.xml",
+        "source": "com.comraide.android.comraid-core-1.18.0-2:/layout/custom_dialog.xml"
+    },
+    {
+        "merged": "com.comraide.android.comraid-release-11:/layout/ime_base_split_test_activity.xml",
+        "source": "com.comraide.android.comraid-core-1.18.0-2:/layout/ime_base_split_test_activity.xml"
+    },
+    {
+        "merged": "com.comraide.android.comraid-release-11:/layout/ime_secondary_split_test_activity.xml",
+        "source": "com.comraide.android.comraid-core-1.18.0-2:/layout/ime_secondary_split_test_activity.xml"
+    },
+    {
+        "merged": "com.comraide.android.comraid-release-11:/layout/notification_template_custom_big.xml",
+        "source": "com.comraide.android.comraid-core-1.18.0-2:/layout/notification_template_custom_big.xml"
+    },
+    {
+        "merged": "com.comraide.android.comraid-release-11:/layout/notification_action_tombstone.xml",
+        "source": "com.comraide.android.comraid-core-1.18.0-2:/layout/notification_action_tombstone.xml"
+    },
+    {
+        "merged": "com.comraide.android.comraid-release-11:/layout/notification_template_part_chronometer.xml",
+        "source": "com.comraide.android.comraid-core-1.18.0-2:/layout/notification_template_part_chronometer.xml"
+    },
+    {
+        "merged": "com.comraide.android.comraid-release-11:/layout/notification_template_icon_group.xml",
+        "source": "com.comraide.android.comraid-core-1.18.0-2:/layout/notification_template_icon_group.xml"
+    }
+]

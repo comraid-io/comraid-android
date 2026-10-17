@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<incidents format="6" by="lint 9.0.0" type="partial_results">
+    <map id="NotificationPermission">
+        <entry
+            name="source"
+            boolean="true"/>
+    </map>
+    <map id="ScheduleExactAlarm">
+        <location id="0"
+            file="${:comraid*debug*MAIN*sourceProvider*0*javaDir*0}/com/comraide/android/internal/ComraidScheduler.kt"
+            line="34"
+            column="7"
+            startOffset="1444"
+            endLine="34"
+            endColumn="103"
+            endOffset="1540"/>
+        <entry
+            name="ChecksExactAlarmPermission"
+            boolean="true"/>
+    </map>
+    <map id="UnsafeIntentLaunch">
+            <map id="unprotected">
+                <entry
+                    name="com.comraide.android.internal.ComraidBootReceiver"
+                    boolean="true"/>
+            </map>
+    </map>
+    <map id="UnusedResources">
+        <entry
+            name="model"
+            string=""/>
+    </map>
+
+</incidents>

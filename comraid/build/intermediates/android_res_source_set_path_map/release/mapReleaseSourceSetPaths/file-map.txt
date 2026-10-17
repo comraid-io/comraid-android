@@ -1,0 +1,16 @@
+com.comraide.android.comraid-tracing-1.2.0-0 /Users/kitchen/.gradle/caches/9.3.1/transforms/08b911438624e0849f1fbaea59dfb33b/transformed/tracing-1.2.0/res
+com.comraide.android.comraid-annotation-experimental-1.4.1-1 /Users/kitchen/.gradle/caches/9.3.1/transforms/11d8d834ff8c5f7a997d20ea123eea0c/transformed/annotation-experimental-1.4.1/res
+com.comraide.android.comraid-core-1.18.0-2 /Users/kitchen/.gradle/caches/9.3.1/transforms/2bf78be63bde929071e5e849638c9a81/transformed/core-1.18.0/res
+com.comraide.android.comraid-core-ktx-1.18.0-3 /Users/kitchen/.gradle/caches/9.3.1/transforms/6f6026ec6ca84eb7d4b8decb04def74d/transformed/core-ktx-1.18.0/res
+com.comraide.android.comraid-startup-runtime-1.1.1-4 /Users/kitchen/.gradle/caches/9.3.1/transforms/7cef011bdc71da385561054f63b6dfd0/transformed/startup-runtime-1.1.1/res
+com.comraide.android.comraid-core-viewtree-1.0.0-5 /Users/kitchen/.gradle/caches/9.3.1/transforms/a078d21e524a85f0d0ec92917d5fb81b/transformed/core-viewtree-1.0.0/res
+com.comraide.android.comraid-lifecycle-runtime-2.6.2-6 /Users/kitchen/.gradle/caches/9.3.1/transforms/af5176fa06e325b8c6255f885d4824d7/transformed/lifecycle-runtime-2.6.2/res
+com.comraide.android.comraid-profileinstaller-1.3.0-7 /Users/kitchen/.gradle/caches/9.3.1/transforms/c39cc0558e367a5eaab9473acab4d5e3/transformed/profileinstaller-1.3.0/res
+com.comraide.android.comraid-core-runtime-2.2.0-8 /Users/kitchen/.gradle/caches/9.3.1/transforms/c43840bdac5e7fc87a99b92897e2b334/transformed/core-runtime-2.2.0/res
+com.comraide.android.comraid-pngs-9 /Users/kitchen/Desktop/comraid/comraid-Android/comraid/build/generated/res/pngs/release
+com.comraide.android.comraid-updated_navigation_xml-10 /Users/kitchen/Desktop/comraid/comraid-Android/comraid/build/generated/updated_navigation_xml/release
+com.comraide.android.comraid-mergeReleaseResources-11 /Users/kitchen/Desktop/comraid/comraid-Android/comraid/build/intermediates/incremental/release/mergeReleaseResources/merged.dir
+com.comraide.android.comraid-mergeReleaseResources-12 /Users/kitchen/Desktop/comraid/comraid-Android/comraid/build/intermediates/incremental/release/mergeReleaseResources/stripped.dir
+com.comraide.android.comraid-release-13 /Users/kitchen/Desktop/comraid/comraid-Android/comraid/build/intermediates/merged_res/release/mergeReleaseResources
+com.comraide.android.comraid-main-14 /Users/kitchen/Desktop/comraid/comraid-Android/comraid/src/main/res
+com.comraide.android.comraid-release-15 /Users/kitchen/Desktop/comraid/comraid-Android/comraid/src/release/res

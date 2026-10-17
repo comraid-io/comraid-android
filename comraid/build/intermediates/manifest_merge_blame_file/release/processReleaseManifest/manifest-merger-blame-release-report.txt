@@ -1,0 +1,48 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.comraide.android" >
+4
+5    <uses-sdk android:minSdkVersion="23" />
+6
+7    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+7-->/Users/kitchen/Desktop/comraid/comraid-Android/comraid/src/main/AndroidManifest.xml:2:3-75
+7-->/Users/kitchen/Desktop/comraid/comraid-Android/comraid/src/main/AndroidManifest.xml:2:20-72
+8    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+8-->/Users/kitchen/Desktop/comraid/comraid-Android/comraid/src/main/AndroidManifest.xml:3:3-79
+8-->/Users/kitchen/Desktop/comraid/comraid-Android/comraid/src/main/AndroidManifest.xml:3:20-76
+9
+10    <application>
+10-->/Users/kitchen/Desktop/comraid/comraid-Android/comraid/src/main/AndroidManifest.xml:5:3-20:17
+11        <receiver
+11-->/Users/kitchen/Desktop/comraid/comraid-Android/comraid/src/main/AndroidManifest.xml:6:5-8:34
+12            android:name="com.comraide.android.internal.ComraidAlarmReceiver"
+12-->/Users/kitchen/Desktop/comraid/comraid-Android/comraid/src/main/AndroidManifest.xml:7:7-52
+13            android:exported="false" />
+13-->/Users/kitchen/Desktop/comraid/comraid-Android/comraid/src/main/AndroidManifest.xml:8:7-31
+14        <receiver
+14-->/Users/kitchen/Desktop/comraid/comraid-Android/comraid/src/main/AndroidManifest.xml:9:5-19:16
+15            android:name="com.comraide.android.internal.ComraidBootReceiver"
+15-->/Users/kitchen/Desktop/comraid/comraid-Android/comraid/src/main/AndroidManifest.xml:10:7-51
+16            android:enabled="true"
+16-->/Users/kitchen/Desktop/comraid/comraid-Android/comraid/src/main/AndroidManifest.xml:11:7-29
+17            android:exported="true" >
+17-->/Users/kitchen/Desktop/comraid/comraid-Android/comraid/src/main/AndroidManifest.xml:12:7-30
+18            <intent-filter>
+18-->/Users/kitchen/Desktop/comraid/comraid-Android/comraid/src/main/AndroidManifest.xml:13:7-18:23
+19                <action android:name="android.intent.action.BOOT_COMPLETED" />
+19-->/Users/kitchen/Desktop/comraid/comraid-Android/comraid/src/main/AndroidManifest.xml:14:9-71
+19-->/Users/kitchen/Desktop/comraid/comraid-Android/comraid/src/main/AndroidManifest.xml:14:17-68
+20                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+20-->/Users/kitchen/Desktop/comraid/comraid-Android/comraid/src/main/AndroidManifest.xml:15:9-76
+20-->/Users/kitchen/Desktop/comraid/comraid-Android/comraid/src/main/AndroidManifest.xml:15:17-73
+21                <action android:name="android.intent.action.TIME_SET" />
+21-->/Users/kitchen/Desktop/comraid/comraid-Android/comraid/src/main/AndroidManifest.xml:16:9-65
+21-->/Users/kitchen/Desktop/comraid/comraid-Android/comraid/src/main/AndroidManifest.xml:16:17-62
+22                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+22-->/Users/kitchen/Desktop/comraid/comraid-Android/comraid/src/main/AndroidManifest.xml:17:9-73
+22-->/Users/kitchen/Desktop/comraid/comraid-Android/comraid/src/main/AndroidManifest.xml:17:17-70
+23            </intent-filter>
+24        </receiver>
+25    </application>
+26
+27</manifest>
