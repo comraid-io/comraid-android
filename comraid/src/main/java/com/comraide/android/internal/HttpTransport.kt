@@ -1,0 +1,17 @@
+package com.comraide.android.internal
+
+internal data class HttpRequest(
+  val method: String,
+  val path: String,
+  val headers: Map<String, String>,
+  val body: String?,
+)
+
+internal data class HttpResponse(
+  val statusCode: Int,
+  val body: String,
+)
+
+internal fun interface HttpTransport {
+  fun execute(request: HttpRequest): HttpResponse
+}

@@ -1,10 +1,18 @@
 package com.comraide.android
 
 data class ComraidConfiguration(
+  /** Publishable App ID (`cr_app_…`). Required for mobile API authentication. */
+  val appId: String,
+  /** API base URL. Defaults to the hosted ComRaid API. */
+  val apiBaseUrl: String = DEFAULT_API_BASE_URL,
   val defaultChannelId: String = "comraid.general",
   val defaultChannelName: String = "General",
   val smallIconResourceId: Int,
-)
+) {
+  companion object {
+    const val DEFAULT_API_BASE_URL = "https://api.comraid.io"
+  }
+}
 
 data class ComraidNotification(
   val id: String,
@@ -40,6 +48,8 @@ data class ComraidCapabilities(
 
 sealed class ComraidException(message: String) : IllegalStateException(message) {
   class NotConfigured : ComraidException("Comraid.configure must be called first")
+  class NotReady : ComraidException("Subscription is not ready; grant notification permission and register first")
   class InvalidSchedule(message: String) : ComraidException(message)
   class ExactAlarmUnavailable : ComraidException("Exact alarm access is unavailable")
+  class ApiError(message: String) : ComraidException(message)
 }
