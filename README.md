@@ -1,6 +1,6 @@
 # Comraid Android SDK
 
-Native Android SDK for local notifications/timers and the ComRaid mobile identity loop (Subscription register, Login, Logout, Contact-level push opt-in/out).
+Native Android SDK for local notifications/timers and the ComRaid mobile identity loop (**Subscription** register, **Login**, **Logout**, Contact-level push opt-in/out). Vocabulary: **Endpoint** / **Subscription**, `external_user_id`, Identity verification **JWT** (`login(..., jwt)`). Server-side sends use **Message** / **Notification**, **Campaign**, **Single send**, **Broadcast**, and **Multi-send** (see Node SDK / docs).
 
 ## Setup
 
