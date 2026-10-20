@@ -156,11 +156,11 @@ object Comraid {
     }
   }
 
-  fun login(externalUserId: String, identityToken: String? = null) {
+  fun login(externalUserId: String, jwt: String? = null) {
     val current = requireRuntime()
     val (subscriptionId, credential) = requireSubscription(current)
     require(externalUserId.isNotBlank()) { "external_user_id must not be blank" }
-    current.api.login(subscriptionId, credential, externalUserId.trim(), identityToken)
+    current.api.login(subscriptionId, credential, externalUserId.trim(), jwt)
   }
 
   fun logout() {

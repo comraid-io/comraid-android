@@ -57,17 +57,17 @@ class ComraidIdentityTest {
   }
 
   @Test
-  fun login_includes_optional_identity_token() {
+  fun login_includes_optional_jwt() {
     store.save(subscriptionId = "sub-1", credential = "cred-1")
     transport.nextResponse = HttpResponse(
       statusCode = 200,
       body = """{"subscription_id":"sub-1","contact_id":"c-1","external_user_id":"user_123","anonymous":false,"verified":true}""",
     )
 
-    Comraid.login("user_123", identityToken = "jwt-token")
+    Comraid.login("user_123", jwt = "jwt-from-backend")
 
     val body = JSONObject(transport.requests.single().body!!)
-    assertEquals("jwt-token", body.getString("identity_token"))
+    assertEquals("jwt-from-backend", body.getString("jwt"))
   }
 
   @Test

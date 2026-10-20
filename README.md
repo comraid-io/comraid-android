@@ -46,11 +46,11 @@ override fun onRequestPermissionsResult(
 }
 ```
 
-Login with the product's External user ID (optional identity verification JWT). Logout makes the Subscription Inactive. Opt-out / opt-in are Contact × push Channel (independent of Inactive):
+Login with the product's External user ID (optional Identity verification JWT). Logout makes the Subscription Inactive. Opt-out / opt-in are Contact × push Channel (independent of Inactive):
 
 ```kotlin
 Comraid.login("user_123")
-Comraid.login("user_123", identityToken = jwtFromYourBackend)
+Comraid.login("user_123", jwt = jwtFromYourBackend)
 
 Comraid.logout()
 

@@ -40,13 +40,13 @@ internal class MobileApiClient(
     subscriptionId: String,
     credential: String,
     externalUserId: String,
-    identityToken: String?,
+    jwt: String?,
   ) {
     val body = JSONObject()
       .put("external_user_id", externalUserId)
       .put("subscription_credential", credential)
-    if (identityToken != null) {
-      body.put("identity_token", identityToken)
+    if (jwt != null) {
+      body.put("jwt", jwt)
     }
     val response = post("/mobile/subscriptions/$subscriptionId/login", body)
     requireSuccess(response, expected = setOf(200))
