@@ -45,23 +45,20 @@ internal class ComraidScheduler(private val context: Context) {
   }
 
   fun cancel(id: String) {
-    // Try new and legacy URI schemes so pre-migrate PendingIntents can still be cancelled.
-    for (scheme in listOf(SCHEME, LEGACY_SCHEME)) {
-      val intent = PendingIntent.getBroadcast(
-        context,
-        requestCode(id),
-        Intent(context, ComraidAlarmReceiver::class.java).setData(uri(id, scheme)),
-        PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE,
-      ) ?: continue
-      alarmManager.cancel(intent)
-      intent.cancel()
-    }
+    val intent = PendingIntent.getBroadcast(
+      context,
+      requestCode(id),
+      Intent(context, ComraidAlarmReceiver::class.java).setData(uri(id)),
+      PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE,
+    ) ?: return
+    alarmManager.cancel(intent)
+    intent.cancel()
   }
 
   private fun alarmIntent(request: ComRaidScheduleRequest, configuration: ComRaidConfiguration): PendingIntent {
     val notification = request.notification
     val intent = Intent(context, ComraidAlarmReceiver::class.java)
-      .setData(uri(notification.id, SCHEME))
+      .setData(uri(notification.id))
       .putExtra(EXTRA_ID, notification.id)
       .putExtra(EXTRA_TITLE, notification.title)
       .putExtra(EXTRA_BODY, notification.body)
@@ -76,14 +73,13 @@ internal class ComraidScheduler(private val context: Context) {
     )
   }
 
-  private fun uri(id: String, scheme: String) =
-    Uri.Builder().scheme(scheme).authority("schedule").appendPath(id).build()
+  private fun uri(id: String) =
+    Uri.Builder().scheme(SCHEME).authority("schedule").appendPath(id).build()
 
   private fun requestCode(id: String) = id.hashCode() and Int.MAX_VALUE
 
   internal companion object {
     const val SCHEME = "comraid"
-    const val LEGACY_SCHEME = "comraide"
 
     const val EXTRA_ID = "comraid.id"
     const val EXTRA_TITLE = "comraid.title"
@@ -92,25 +88,9 @@ internal class ComraidScheduler(private val context: Context) {
     const val EXTRA_SMALL_ICON = "comraid.smallIcon"
     const val EXTRA_DATA_PREFIX = "comraid.data."
 
-    const val LEGACY_EXTRA_ID = "comraide.id"
-    const val LEGACY_EXTRA_TITLE = "comraide.title"
-    const val LEGACY_EXTRA_BODY = "comraide.body"
-    const val LEGACY_EXTRA_CHANNEL_ID = "comraide.channelId"
-    const val LEGACY_EXTRA_SMALL_ICON = "comraide.smallIcon"
-    const val LEGACY_EXTRA_DATA_PREFIX = "comraide.data."
-
-    fun stringExtra(intent: Intent, key: String, legacyKey: String): String? =
-      intent.getStringExtra(key) ?: intent.getStringExtra(legacyKey)
-
-    fun intExtra(intent: Intent, key: String, legacyKey: String, default: Int): Int {
-      if (intent.hasExtra(key)) return intent.getIntExtra(key, default)
-      if (intent.hasExtra(legacyKey)) return intent.getIntExtra(legacyKey, default)
-      return default
-    }
-
     fun dataPrefixKeys(intent: Intent): List<String> {
       val keys = intent.extras?.keySet().orEmpty()
-      return keys.filter { it.startsWith(EXTRA_DATA_PREFIX) || it.startsWith(LEGACY_EXTRA_DATA_PREFIX) }
+      return keys.filter { it.startsWith(EXTRA_DATA_PREFIX) }
     }
   }
 }

@@ -14,11 +14,11 @@ import androidx.core.content.ContextCompat
 
 internal class ComraidAlarmReceiver : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent) {
-    val id = ComraidScheduler.stringExtra(intent, ComraidScheduler.EXTRA_ID, ComraidScheduler.LEGACY_EXTRA_ID) ?: return
-    val title = ComraidScheduler.stringExtra(intent, ComraidScheduler.EXTRA_TITLE, ComraidScheduler.LEGACY_EXTRA_TITLE) ?: return
-    val body = ComraidScheduler.stringExtra(intent, ComraidScheduler.EXTRA_BODY, ComraidScheduler.LEGACY_EXTRA_BODY) ?: ""
-    val channelId = ComraidScheduler.stringExtra(intent, ComraidScheduler.EXTRA_CHANNEL_ID, ComraidScheduler.LEGACY_EXTRA_CHANNEL_ID) ?: return
-    val icon = ComraidScheduler.intExtra(intent, ComraidScheduler.EXTRA_SMALL_ICON, ComraidScheduler.LEGACY_EXTRA_SMALL_ICON, 0)
+    val id = intent.getStringExtra(ComraidScheduler.EXTRA_ID) ?: return
+    val title = intent.getStringExtra(ComraidScheduler.EXTRA_TITLE) ?: return
+    val body = intent.getStringExtra(ComraidScheduler.EXTRA_BODY) ?: ""
+    val channelId = intent.getStringExtra(ComraidScheduler.EXTRA_CHANNEL_ID) ?: return
+    val icon = intent.getIntExtra(ComraidScheduler.EXTRA_SMALL_ICON, 0)
     if (icon == 0) return
     val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
       flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP

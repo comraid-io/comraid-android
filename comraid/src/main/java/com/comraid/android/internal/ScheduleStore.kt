@@ -10,9 +10,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 internal class ScheduleStore(context: Context) {
-  private val preferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).also { prefs ->
-    migrateLegacyPrefs(context, prefs)
-  }
+  private val preferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
   @Synchronized
   fun put(request: ComRaidScheduleRequest) {
@@ -74,14 +72,5 @@ internal class ScheduleStore(context: Context) {
   private companion object {
     const val KEY = "pending"
     const val PREFS_NAME = "comraid.schedules"
-    const val LEGACY_PREFS_NAME = "comraide.schedules"
-
-    fun migrateLegacyPrefs(context: Context, prefs: android.content.SharedPreferences) {
-      if (prefs.contains(KEY)) return
-      val legacy = context.getSharedPreferences(LEGACY_PREFS_NAME, Context.MODE_PRIVATE)
-      val legacyValue = legacy.getString(KEY, null) ?: return
-      prefs.edit { putString(KEY, legacyValue) }
-      legacy.edit { clear() }
-    }
   }
 }
