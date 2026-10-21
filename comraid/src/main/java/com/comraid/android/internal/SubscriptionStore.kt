@@ -1,4 +1,4 @@
-package com.comraide.android.internal
+package com.comraid.android.internal
 
 import android.content.Context
 import android.content.SharedPreferences
@@ -40,7 +40,7 @@ internal class SharedPreferencesSubscriptionStore(context: Context) : Subscripti
   private companion object {
     const val KEY_ID = "subscription_id"
     const val KEY_CREDENTIAL = "subscription_credential"
-    const val FILE_NAME = "comraide.subscription.secure"
+    const val FILE_NAME = "comraid.subscription.secure"
 
     fun createSecurePreferences(context: Context): SharedPreferences {
       val masterKey = MasterKey.Builder(context)

@@ -1,4 +1,4 @@
-package com.comraide.android.internal
+package com.comraid.android.internal
 
 import android.Manifest
 import android.app.PendingIntent
@@ -11,7 +11,6 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
-import com.comraide.android.Comraid
 
 internal class ComraidAlarmReceiver : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent) {
@@ -23,11 +22,10 @@ internal class ComraidAlarmReceiver : BroadcastReceiver() {
     if (icon == 0) return
     val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
       flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-      data = Uri.Builder().scheme("comraide").authority("notification").appendPath(id).build()
+      data = Uri.Builder().scheme(ComraidScheduler.SCHEME).authority("notification").appendPath(id).build()
       putExtra(ComraidScheduler.EXTRA_ID, id)
-      intent.extras?.keySet()
-        ?.filter { it.startsWith(ComraidScheduler.EXTRA_DATA_PREFIX) }
-        ?.forEach { key -> putExtra(key, intent.getStringExtra(key)) }
+      ComraidScheduler.dataPrefixKeys(intent)
+        .forEach { key -> putExtra(key, intent.getStringExtra(key)) }
     }
     val contentIntent = launchIntent?.let {
       PendingIntent.getActivity(

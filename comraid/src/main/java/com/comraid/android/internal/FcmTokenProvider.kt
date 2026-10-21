@@ -1,6 +1,6 @@
-package com.comraide.android.internal
+package com.comraid.android.internal
 
-import com.comraide.android.ComraidException
+import com.comraid.android.ComRaidException
 import com.google.firebase.messaging.FirebaseMessaging
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -24,10 +24,10 @@ internal class FcmTokenProvider : TokenProvider {
         latch.countDown()
       }
     if (!latch.await(30, TimeUnit.SECONDS)) {
-      throw ComraidException.ApiError("Timed out waiting for FCM registration token")
+      throw ComRaidException.ApiError("Timed out waiting for FCM registration token")
     }
-    error?.let { throw ComraidException.ApiError("Could not obtain FCM token: ${it.message}") }
+    error?.let { throw ComRaidException.ApiError("Could not obtain FCM token: ${it.message}") }
     return token?.takeIf { it.isNotBlank() }
-      ?: throw ComraidException.ApiError("FCM registration token was empty")
+      ?: throw ComRaidException.ApiError("FCM registration token was empty")
   }
 }

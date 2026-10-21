@@ -3,11 +3,11 @@ plugins {
   `maven-publish`
 }
 
-group = "com.comraide"
+group = "com.comraid"
 version = "0.1.0-SNAPSHOT"
 
 android {
-  namespace = "com.comraide.android"
+  namespace = "com.comraid.android"
   compileSdk = 36
 
   defaultConfig {
@@ -47,7 +47,13 @@ publishing {
   publications {
     register<MavenPublication>("release") {
       afterEvaluate { from(components["release"]) }
+      groupId = "com.comraid"
       artifactId = "comraid"
+      pom {
+        name.set("comraid")
+        description.set("ComRaid Android SDK")
+        packaging = "aar"
+      }
     }
   }
 }
