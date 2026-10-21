@@ -1,6 +1,6 @@
-package com.comraide.android.internal
+package com.comraid.android.internal
 
-import com.comraide.android.ComraidException
+import com.comraid.android.ComRaidException
 import org.json.JSONObject
 
 internal class MobileApiClient(
@@ -90,7 +90,7 @@ internal class MobileApiClient(
         JSONObject(response.body).optJSONObject("error")?.optString("message")
       }.getOrNull()?.takeIf { it.isNotBlank() }
         ?: "HTTP ${response.statusCode}"
-      throw ComraidException.ApiError(message)
+      throw ComRaidException.ApiError(message)
     }
   }
 

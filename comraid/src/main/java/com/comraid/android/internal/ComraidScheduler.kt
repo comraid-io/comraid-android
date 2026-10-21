@@ -1,4 +1,4 @@
-package com.comraide.android.internal
+package com.comraid.android.internal
 
 import android.app.AlarmManager
 import android.app.PendingIntent
@@ -6,22 +6,22 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
-import com.comraide.android.ComraidConfiguration
-import com.comraide.android.ComraidException
-import com.comraide.android.ComraidScheduleRequest
-import com.comraide.android.ComraidScheduleResult
-import com.comraide.android.FallbackPolicy
-import com.comraide.android.SchedulePrecision
+import com.comraid.android.ComRaidConfiguration
+import com.comraid.android.ComRaidException
+import com.comraid.android.ComRaidScheduleRequest
+import com.comraid.android.ComRaidScheduleResult
+import com.comraid.android.FallbackPolicy
+import com.comraid.android.SchedulePrecision
 
 internal class ComraidScheduler(private val context: Context) {
   private val alarmManager = context.getSystemService(AlarmManager::class.java)
 
-  fun schedule(request: ComraidScheduleRequest, configuration: ComraidConfiguration): ComraidScheduleResult {
+  fun schedule(request: ComRaidScheduleRequest, configuration: ComRaidConfiguration): ComRaidScheduleResult {
     val canExact = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()
     val appliedPrecision: SchedulePrecision
     val fallbackReason: String?
     if (request.precision == SchedulePrecision.EXACT && !canExact) {
-      if (request.fallbackPolicy == FallbackPolicy.FAIL) throw ComraidException.ExactAlarmUnavailable()
+      if (request.fallbackPolicy == FallbackPolicy.FAIL) throw ComRaidException.ExactAlarmUnavailable()
       appliedPrecision = SchedulePrecision.INEXACT
       fallbackReason = "Exact alarm access is unavailable; scheduled as inexact"
     } else {
@@ -35,7 +35,7 @@ internal class ComraidScheduler(private val context: Context) {
     } else {
       alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, request.triggerAtMillis, intent)
     }
-    return ComraidScheduleResult(
+    return ComRaidScheduleResult(
       id = request.notification.id,
       requestedPrecision = request.precision,
       appliedPrecision = appliedPrecision,
@@ -55,7 +55,7 @@ internal class ComraidScheduler(private val context: Context) {
     intent.cancel()
   }
 
-  private fun alarmIntent(request: ComraidScheduleRequest, configuration: ComraidConfiguration): PendingIntent {
+  private fun alarmIntent(request: ComRaidScheduleRequest, configuration: ComRaidConfiguration): PendingIntent {
     val notification = request.notification
     val intent = Intent(context, ComraidAlarmReceiver::class.java)
       .setData(uri(notification.id))
@@ -73,15 +73,24 @@ internal class ComraidScheduler(private val context: Context) {
     )
   }
 
-  private fun uri(id: String) = Uri.Builder().scheme("comraide").authority("schedule").appendPath(id).build()
+  private fun uri(id: String) =
+    Uri.Builder().scheme(SCHEME).authority("schedule").appendPath(id).build()
+
   private fun requestCode(id: String) = id.hashCode() and Int.MAX_VALUE
 
   internal companion object {
-    const val EXTRA_ID = "comraide.id"
-    const val EXTRA_TITLE = "comraide.title"
-    const val EXTRA_BODY = "comraide.body"
-    const val EXTRA_CHANNEL_ID = "comraide.channelId"
-    const val EXTRA_SMALL_ICON = "comraide.smallIcon"
-    const val EXTRA_DATA_PREFIX = "comraide.data."
+    const val SCHEME = "comraid"
+
+    const val EXTRA_ID = "comraid.id"
+    const val EXTRA_TITLE = "comraid.title"
+    const val EXTRA_BODY = "comraid.body"
+    const val EXTRA_CHANNEL_ID = "comraid.channelId"
+    const val EXTRA_SMALL_ICON = "comraid.smallIcon"
+    const val EXTRA_DATA_PREFIX = "comraid.data."
+
+    fun dataPrefixKeys(intent: Intent): List<String> {
+      val keys = intent.extras?.keySet().orEmpty()
+      return keys.filter { it.startsWith(EXTRA_DATA_PREFIX) }
+    }
   }
 }
