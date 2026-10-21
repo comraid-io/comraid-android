@@ -3,11 +3,11 @@ plugins {
   `maven-publish`
 }
 
-group = "com.comraide"
+group = "com.comraid"
 version = "0.1.0-SNAPSHOT"
 
 android {
-  namespace = "com.comraide.android"
+  namespace = "com.comraid.android"
   compileSdk = 36
 
   defaultConfig {
@@ -45,13 +45,13 @@ publishing {
     }
   }
   publications {
-    // Legacy coordinates (expand phase keeps these installable).
+    // Legacy coordinates (publish alias until contract).
     register<MavenPublication>("release") {
       afterEvaluate { from(components["release"]) }
       groupId = "com.comraide"
       artifactId = "comraid"
     }
-    // Canonical coordinates. Cannot call from(components["release"]) twice, so
+    // Primary coordinates. Cannot call from(components["release"]) twice, so
     // publish the same AAR under com.comraid:comraid.
     register<MavenPublication>("comraidCanonical") {
       groupId = "com.comraid"

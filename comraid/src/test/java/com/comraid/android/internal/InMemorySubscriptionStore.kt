@@ -1,4 +1,4 @@
-package com.comraide.android.internal
+package com.comraid.android.internal
 
 internal class InMemorySubscriptionStore : SubscriptionStore {
   override var subscriptionId: String? = null

@@ -1,6 +1,6 @@
-package com.comraide.android
+package com.comraid.android
 
-data class ComraidConfiguration(
+data class ComRaidConfiguration(
   /** Publishable App ID (`cr_app_…`). Required for mobile API authentication. */
   val appId: String,
   /** API base URL. Defaults to the hosted ComRaid API. */
@@ -14,7 +14,7 @@ data class ComraidConfiguration(
   }
 }
 
-data class ComraidNotification(
+data class ComRaidNotification(
   val id: String,
   val title: String,
   val body: String,
@@ -26,14 +26,14 @@ enum class SchedulePrecision { INEXACT, EXACT }
 
 enum class FallbackPolicy { FAIL, USE_INEXACT }
 
-data class ComraidScheduleRequest(
-  val notification: ComraidNotification,
+data class ComRaidScheduleRequest(
+  val notification: ComRaidNotification,
   val triggerAtMillis: Long,
   val precision: SchedulePrecision = SchedulePrecision.INEXACT,
   val fallbackPolicy: FallbackPolicy = FallbackPolicy.FAIL,
 )
 
-data class ComraidScheduleResult(
+data class ComRaidScheduleResult(
   val id: String,
   val requestedPrecision: SchedulePrecision,
   val appliedPrecision: SchedulePrecision,
@@ -41,15 +41,15 @@ data class ComraidScheduleResult(
   val fallbackReason: String? = null,
 )
 
-data class ComraidCapabilities(
+data class ComRaidCapabilities(
   val notificationsEnabled: Boolean,
   val exactAlarmsAvailable: Boolean,
 )
 
-sealed class ComraidException(message: String) : IllegalStateException(message) {
-  class NotConfigured : ComraidException("Comraid.configure must be called first")
-  class NotReady : ComraidException("Subscription is not ready; grant notification permission and register first")
-  class InvalidSchedule(message: String) : ComraidException(message)
-  class ExactAlarmUnavailable : ComraidException("Exact alarm access is unavailable")
-  class ApiError(message: String) : ComraidException(message)
+sealed class ComRaidException(message: String) : IllegalStateException(message) {
+  class NotConfigured : ComRaidException("ComRaid.configure must be called first")
+  class NotReady : ComRaidException("Subscription is not ready; grant notification permission and register first")
+  class InvalidSchedule(message: String) : ComRaidException(message)
+  class ExactAlarmUnavailable : ComRaidException("Exact alarm access is unavailable")
+  class ApiError(message: String) : ComRaidException(message)
 }

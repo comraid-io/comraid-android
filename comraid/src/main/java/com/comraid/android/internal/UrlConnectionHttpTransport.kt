@@ -1,4 +1,4 @@
-package com.comraide.android.internal
+package com.comraid.android.internal
 
 import java.io.BufferedReader
 import java.io.InputStreamReader
