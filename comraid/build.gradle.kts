@@ -45,23 +45,10 @@ publishing {
     }
   }
   publications {
-    // Legacy coordinates (publish alias until contract).
     register<MavenPublication>("release") {
       afterEvaluate { from(components["release"]) }
-      groupId = "com.comraide"
-      artifactId = "comraid"
-    }
-    // Primary coordinates. Cannot call from(components["release"]) twice, so
-    // publish the same AAR under com.comraid:comraid.
-    register<MavenPublication>("comraidCanonical") {
       groupId = "com.comraid"
       artifactId = "comraid"
-      version = project.version.toString()
-      afterEvaluate {
-        artifact(tasks.named("bundleReleaseAar")) {
-          extension = "aar"
-        }
-      }
       pom {
         name.set("comraid")
         description.set("ComRaid Android SDK")
