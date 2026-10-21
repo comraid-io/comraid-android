@@ -60,7 +60,7 @@ ComRaid.optIn()
 
 Logout makes the Subscription Inactive; Opted out is Contact × Channel and independent of Inactive.
 
-On FCM token rotation, either call `ComRaid.onPushTokenRefresh()` from your `FirebaseMessagingService.onNewToken`, or declare `com.comraid.android.internal.ComraidMessagingService` (or a subclass) in the host manifest.
+On FCM token rotation, either call `ComRaid.onPushTokenRefresh()` from your `FirebaseMessagingService.onNewToken`, or declare the open class `com.comraid.android.internal.ComraidMessagingService` (or a subclass) in the host manifest — package `com.comraid.android.internal`, class name `ComraidMessagingService`.
 
 ## Local timers
 
