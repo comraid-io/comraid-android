@@ -1,11 +1,11 @@
 # ComRaid Android SDK
 
-Native Android SDK for local notifications/timers and the ComRaid mobile identity loop (**Subscription** register, **Login**, **Logout**, Contact-level push opt-in/out). Vocabulary: **Endpoint** / **Subscription**, `external_user_id`, Identity verification **JWT** (`login(..., jwt)`). Server-side sends use **Message** / **Notification**, **Campaign**, **Single send**, **Broadcast**, and **Multi-send** (see Node SDK / docs).
+Native Android SDK for push Subscriptions, remote notification display, delivery ACKs, and local timers. Vocabulary: **Endpoint** / **Subscription**, `external_user_id`, Identity verification **JWT** (`login(..., jwt)`), Contact **Attributes**, Subscription **Properties**. Maven coordinate: `com.comraid:comraid`.
 
 ## Setup
 
 1. Add the library and **Firebase Messaging** (the host app owns the Firebase project).
-2. Configure early in `Application.onCreate` with a publishable App ID (`cr_app_…`).
+2. Configure early in `Application.onCreate` with a publishable App ID (`cr_app_…`). Channels are created here **before** permission / token acquisition (Android 13+).
 
 ```kotlin
 ComRaid.configure(
@@ -18,49 +18,44 @@ ComRaid.configure(
 )
 ```
 
+Declare `com.comraid.android.internal.ComraidMessagingService` (or a subclass) in the host manifest for FCM token rotation, remote display (including action buttons), and durable delivered/opened ACKs.
+
 ## Identity loop
 
-Request notification permission at an appropriate UI moment. On grant, the SDK fetches the FCM token and registers a Subscription:
-
 ```kotlin
-ComRaid.requestPermission(activity) { granted ->
-  if (granted) {
-    // Subscription is registered; store holds subscription_id + credential
-  }
-}
+ComRaid.requestPermission(activity) { granted -> /* … */ }
+// or ComRaid.register() when permission is already granted
 
-// Or, if permission is already granted:
-ComRaid.register()
-```
-
-Forward permission results:
-
-```kotlin
-override fun onRequestPermissionsResult(
-  requestCode: Int,
-  permissions: Array<out String>,
-  grantResults: IntArray,
-) {
-  super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-  ComRaid.onRequestPermissionsResult(requestCode, grantResults)
-}
-```
-
-Login with the product's External user ID (optional Identity verification JWT). Logout makes the Subscription Inactive. Opt-out / opt-in are Contact × push Channel (independent of Inactive):
-
-```kotlin
 ComRaid.login("user_123")
 ComRaid.login("user_123", jwt = jwtFromYourBackend)
-
 ComRaid.logout()
-
-ComRaid.optOut() // Contact Opted out of the push Channel (all Subscriptions)
+ComRaid.optOut()
 ComRaid.optIn()
 ```
 
-Logout makes the Subscription Inactive; Opted out is Contact × Channel and independent of Inactive.
+Forward permission results via `ComRaid.onRequestPermissionsResult`.
 
-On FCM token rotation, either call `ComRaid.onPushTokenRefresh()` from your `FirebaseMessagingService.onNewToken`, or declare the open class `com.comraid.android.internal.ComraidMessagingService` (or a subclass) in the host manifest — package `com.comraid.android.internal`, class name `ComraidMessagingService`.
+## Properties and Attributes
+
+```kotlin
+ComRaid.setDeviceProperties(
+  DeviceProperties(appVersion = "1.2.0", model = "Pixel 8", osVersion = "14"),
+)
+// included on the next register / token refresh
+
+ComRaid.login("user_123")
+ComRaid.setAttributes(mapOf("plan" to "premium"))
+```
+
+## Delivery ACKs
+
+Remote messages enqueue durable delivered/opened ACKs (persisted SharedPreferences queue with Retry-After / backoff). Flush works from the messaging service without a foreground `ComRaid` singleton as long as `configure` has run at least once on the device.
+
+```kotlin
+ComRaid.acknowledgeDelivered(deliveryId, attributionToken)
+ComRaid.acknowledgeOpened(deliveryId, attributionToken, actionId = "accept")
+ComRaid.flushAcks()
+```
 
 ## Local timers
 
@@ -83,4 +78,4 @@ Boot restoration needs the host app to call `ComRaid.configure` from `Applicatio
 
 - Wire field is `external_user_id` (never `external_id`).
 - Logout keeps the stored credential so Contact-level opt-in/out still works while Inactive.
-- Remote notification display and delivery ACKs are out of scope for this package version.
+- Package namespace is `com.comraid.android`; never `com.comraide`.
