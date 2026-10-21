@@ -3,19 +3,23 @@ package com.comraid.android
 import android.Manifest
 import android.app.Activity
 import android.app.AlarmManager
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import com.comraid.android.internal.AckKind
+import com.comraid.android.internal.AckQueue
+import com.comraid.android.internal.AckQueueStore
 import com.comraid.android.internal.ComraidScheduler
 import com.comraid.android.internal.FcmTokenProvider
 import com.comraid.android.internal.HttpTransport
 import com.comraid.android.internal.MobileApiClient
+import com.comraid.android.internal.NotificationChannels
 import com.comraid.android.internal.ScheduleStore
+import com.comraid.android.internal.SdkConfigStore
+import com.comraid.android.internal.SharedPreferencesAckQueueStore
 import com.comraid.android.internal.SharedPreferencesSubscriptionStore
 import com.comraid.android.internal.SubscriptionStore
 import com.comraid.android.internal.TokenProvider
@@ -30,40 +34,68 @@ object ComRaid {
   fun configure(context: Context, configuration: ComRaidConfiguration) {
     validateConfiguration(configuration)
     val appContext = context.applicationContext
-    createDefaultChannel(appContext, configuration)
+    SdkConfigStore(appContext).save(configuration)
+    NotificationChannels.ensureDefault(appContext, configuration)
     val store = SharedPreferencesSubscriptionStore(appContext)
     val transport = UrlConnectionHttpTransport(configuration.apiBaseUrl)
+    val api = MobileApiClient(configuration.appId.trim(), transport)
+    runCatching {
+      val categories = api.listNotificationCategories()
+      if (categories.isNotEmpty()) {
+        NotificationChannels.ensureCategories(appContext, categories)
+      }
+    }
     val tokenProvider = FcmTokenProvider()
+    val ackQueue = AckQueue(
+      apiBaseUrl = configuration.apiBaseUrl,
+      store = SharedPreferencesAckQueueStore(appContext),
+      transport = transport,
+    )
     synchronized(lock) {
       runtime = Runtime(
         configuration = configuration,
         scheduleStore = ScheduleStore(appContext),
         scheduler = ComraidScheduler(appContext),
         subscriptionStore = store,
-        api = MobileApiClient(configuration.appId.trim(), transport),
+        api = api,
         tokenProvider = tokenProvider,
+        ackQueue = ackQueue,
+        deviceProperties = null,
+        externalUserId = null,
       )
     }
+    runCatching { ackQueue.flush() }
   }
 
   /**
-   * Test seam: configure with injectable HTTP transport, token provider, and subscription store.
+   * Test seam: configure with injectable HTTP transport, token provider, subscription store,
+   * and ACK queue store.
    */
   internal fun configureForTests(
     configuration: ComRaidConfiguration,
     transport: HttpTransport,
     tokenProvider: TokenProvider,
     subscriptionStore: SubscriptionStore,
+    ackQueueStore: AckQueueStore = InMemoryAckQueueStoreForTests(),
   ) {
     validateConfiguration(configuration)
+    val api = MobileApiClient(configuration.appId.trim(), transport)
+    val ackQueue = AckQueue(
+      apiBaseUrl = configuration.apiBaseUrl,
+      store = ackQueueStore,
+      transport = transport,
+    )
     synchronized(lock) {
       runtime = Runtime(
         configuration = configuration,
         scheduleStore = null,
         scheduler = null,
         subscriptionStore = subscriptionStore,
-        api = MobileApiClient(configuration.appId.trim(), transport),
+        api = api,
         tokenProvider = tokenProvider,
+        ackQueue = ackQueue,
+        deviceProperties = null,
+        externalUserId = null,
       )
     }
   }
@@ -89,6 +121,7 @@ object ComRaid {
   /**
    * Requests notification permission when needed, then registers a Subscription if granted.
    * Configure only stores settings; this is when token fetch + register run.
+   * Channels are created in [configure] before this runs (Android 13+ prerequisite).
    */
   fun requestPermission(activity: Activity, onResult: (granted: Boolean) -> Unit) {
     requireRuntime()
@@ -136,7 +169,7 @@ object ComRaid {
   fun register() {
     val current = requireRuntime()
     val token = current.tokenProvider.currentToken()
-    val result = current.api.register(token)
+    val result = current.api.register(token, current.deviceProperties)
     current.subscriptionStore.save(result.subscriptionId, result.credential)
   }
 
@@ -149,9 +182,9 @@ object ComRaid {
     val subscriptionId = current.subscriptionStore.subscriptionId
     val credential = current.subscriptionStore.credential
     if (subscriptionId != null && credential != null) {
-      current.api.replaceToken(subscriptionId, credential, token)
+      current.api.replaceToken(subscriptionId, credential, token, current.deviceProperties)
     } else {
-      val result = current.api.register(token)
+      val result = current.api.register(token, current.deviceProperties)
       current.subscriptionStore.save(result.subscriptionId, result.credential)
     }
   }
@@ -160,13 +193,20 @@ object ComRaid {
     val current = requireRuntime()
     val (subscriptionId, credential) = requireSubscription(current)
     require(externalUserId.isNotBlank()) { "external_user_id must not be blank" }
-    current.api.login(subscriptionId, credential, externalUserId.trim(), jwt)
+    val trimmed = externalUserId.trim()
+    current.api.login(subscriptionId, credential, trimmed, jwt)
+    synchronized(lock) {
+      runtime = current.copy(externalUserId = trimmed)
+    }
   }
 
   fun logout() {
     val current = requireRuntime()
     val (subscriptionId, credential) = requireSubscription(current)
     current.api.logout(subscriptionId, credential)
+    synchronized(lock) {
+      runtime = current.copy(externalUserId = null)
+    }
   }
 
   fun optOut() {
@@ -179,6 +219,66 @@ object ComRaid {
     val current = requireRuntime()
     val (subscriptionId, credential) = requireSubscription(current)
     current.api.optIn(subscriptionId, credential, channel = "push")
+  }
+
+  /** Persist Subscription device Properties for the next register / token refresh. */
+  fun setDeviceProperties(properties: DeviceProperties) {
+    val current = requireRuntime()
+    synchronized(lock) {
+      runtime = current.copy(deviceProperties = properties)
+    }
+  }
+
+  /**
+   * Upsert Contact Attributes for the logged-in External user ID
+   * (`PUT /contacts/{external_user_id}/attributes`).
+   */
+  fun setAttributes(attributes: Map<String, Any?>) {
+    val current = requireRuntime()
+    val externalUserId = current.externalUserId
+      ?: throw ComRaidException.NotReady()
+    require(attributes.isNotEmpty()) { "attributes must not be empty" }
+    current.api.upsertAttributes(externalUserId, attributes)
+  }
+
+  /** Enqueue + flush a delivered ACK. Returns false when ids are blank. */
+  fun acknowledgeDelivered(deliveryId: String, attributionToken: String): Boolean {
+    val current = requireRuntime()
+    if (deliveryId.isBlank() || attributionToken.isBlank()) return false
+    current.ackQueue.enqueueFromPayload(
+      AckKind.DELIVERED,
+      mapOf(
+        "cr_delivery_id" to deliveryId.trim(),
+        "cr_attribution_token" to attributionToken.trim(),
+      ),
+    )
+    current.ackQueue.flush()
+    return true
+  }
+
+  /** Enqueue + flush an opened ACK (optional action button id). */
+  fun acknowledgeOpened(
+    deliveryId: String,
+    attributionToken: String,
+    actionId: String? = null,
+  ): Boolean {
+    val current = requireRuntime()
+    if (deliveryId.isBlank() || attributionToken.isBlank()) return false
+    current.ackQueue.enqueueFromPayload(
+      AckKind.OPENED,
+      mapOf(
+        "cr_delivery_id" to deliveryId.trim(),
+        "cr_attribution_token" to attributionToken.trim(),
+      ),
+      actionId = actionId,
+    )
+    current.ackQueue.flush()
+    return true
+  }
+
+  /** Flush any durable ACK backlog (safe to call from Application.onCreate). */
+  fun flushAcks() {
+    runtime?.ackQueue?.flush()
   }
 
   fun schedule(request: ComRaidScheduleRequest): ComRaidScheduleResult {
@@ -207,7 +307,7 @@ object ComRaid {
         triggerAtMillis = System.currentTimeMillis() + durationMillis,
         precision = precision,
         fallbackPolicy = fallbackPolicy,
-      )
+      ),
     )
   }
 
@@ -259,19 +359,6 @@ object ComRaid {
     return subscriptionId to credential
   }
 
-  private fun createDefaultChannel(context: Context, configuration: ComRaidConfiguration) {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-      val manager = context.getSystemService(NotificationManager::class.java)
-      manager.createNotificationChannel(
-        NotificationChannel(
-          configuration.defaultChannelId,
-          configuration.defaultChannelName,
-          NotificationManager.IMPORTANCE_DEFAULT,
-        )
-      )
-    }
-  }
-
   private data class Runtime(
     val configuration: ComRaidConfiguration,
     val scheduleStore: ScheduleStore?,
@@ -279,5 +366,16 @@ object ComRaid {
     val subscriptionStore: SubscriptionStore,
     val api: MobileApiClient,
     val tokenProvider: TokenProvider,
+    val ackQueue: AckQueue,
+    val deviceProperties: DeviceProperties?,
+    val externalUserId: String?,
   )
+
+  private class InMemoryAckQueueStoreForTests : AckQueueStore {
+    private val map = mutableMapOf<String, String>()
+    override fun get(key: String): String? = map[key]
+    override fun set(key: String, value: String) {
+      map[key] = value
+    }
+  }
 }

@@ -46,6 +46,17 @@ data class ComRaidCapabilities(
   val exactAlarmsAvailable: Boolean,
 )
 
+/**
+ * Subscription (device) Properties sent on register / token refresh
+ * (`app_version` + `device` object per mobile OpenAPI).
+ */
+data class DeviceProperties(
+  val appVersion: String? = null,
+  val model: String? = null,
+  val osVersion: String? = null,
+  val extras: Map<String, Any?> = emptyMap(),
+)
+
 sealed class ComRaidException(message: String) : IllegalStateException(message) {
   class NotConfigured : ComRaidException("ComRaid.configure must be called first")
   class NotReady : ComRaidException("Subscription is not ready; grant notification permission and register first")

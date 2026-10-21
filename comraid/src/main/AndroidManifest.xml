@@ -7,6 +7,9 @@
       android:name=".internal.ComraidAlarmReceiver"
       android:exported="false" />
     <receiver
+      android:name=".internal.ComraidNotificationActionReceiver"
+      android:exported="false" />
+    <receiver
       android:name=".internal.ComraidBootReceiver"
       android:enabled="true"
       android:exported="true">

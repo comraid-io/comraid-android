@@ -33,7 +33,14 @@ internal class UrlConnectionHttpTransport(
       val responseBody = stream?.use { input ->
         BufferedReader(InputStreamReader(input, Charsets.UTF_8)).readText()
       } ?: ""
-      return HttpResponse(statusCode = code, body = responseBody)
+      val headers = buildMap {
+        connection.headerFields?.forEach { (key, values) ->
+          if (key != null && !values.isNullOrEmpty()) {
+            put(key, values.last())
+          }
+        }
+      }
+      return HttpResponse(statusCode = code, body = responseBody, headers = headers)
     } finally {
       connection.disconnect()
     }

@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "com.comraid"
-version = "0.1.0-SNAPSHOT"
+version = "0.1.0"
 
 android {
   namespace = "com.comraid.android"
