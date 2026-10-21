@@ -1,4 +1,4 @@
-package com.comraide.android.internal
+package com.comraid.android.internal
 
 internal data class HttpRequest(
   val method: String,

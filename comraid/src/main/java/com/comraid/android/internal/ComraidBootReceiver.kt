@@ -1,9 +1,9 @@
-package com.comraide.android.internal
+package com.comraid.android.internal
 
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import com.comraide.android.Comraid
+import com.comraid.android.ComRaid
 
 internal class ComraidBootReceiver : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent) {
@@ -11,7 +11,7 @@ internal class ComraidBootReceiver : BroadcastReceiver() {
       Intent.ACTION_BOOT_COMPLETED,
       Intent.ACTION_MY_PACKAGE_REPLACED,
       Intent.ACTION_TIME_CHANGED,
-      Intent.ACTION_TIMEZONE_CHANGED -> Comraid.restore(context.applicationContext)
+      Intent.ACTION_TIMEZONE_CHANGED -> ComRaid.restore(context.applicationContext)
     }
   }
 }

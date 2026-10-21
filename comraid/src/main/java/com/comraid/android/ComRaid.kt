@@ -1,4 +1,4 @@
-package com.comraide.android
+package com.comraid.android
 
 import android.Manifest
 import android.app.Activity
@@ -11,23 +11,23 @@ import android.os.Build
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
-import com.comraide.android.internal.ComraidScheduler
-import com.comraide.android.internal.FcmTokenProvider
-import com.comraide.android.internal.HttpTransport
-import com.comraide.android.internal.MobileApiClient
-import com.comraide.android.internal.ScheduleStore
-import com.comraide.android.internal.SharedPreferencesSubscriptionStore
-import com.comraide.android.internal.SubscriptionStore
-import com.comraide.android.internal.TokenProvider
-import com.comraide.android.internal.UrlConnectionHttpTransport
+import com.comraid.android.internal.ComraidScheduler
+import com.comraid.android.internal.FcmTokenProvider
+import com.comraid.android.internal.HttpTransport
+import com.comraid.android.internal.MobileApiClient
+import com.comraid.android.internal.ScheduleStore
+import com.comraid.android.internal.SharedPreferencesSubscriptionStore
+import com.comraid.android.internal.SubscriptionStore
+import com.comraid.android.internal.TokenProvider
+import com.comraid.android.internal.UrlConnectionHttpTransport
 
-object Comraid {
+object ComRaid {
   private const val PERMISSION_REQUEST_CODE = 24_601
   private val lock = Any()
   @Volatile private var runtime: Runtime? = null
   @Volatile private var permissionCallback: ((Boolean) -> Unit)? = null
 
-  fun configure(context: Context, configuration: ComraidConfiguration) {
+  fun configure(context: Context, configuration: ComRaidConfiguration) {
     validateConfiguration(configuration)
     val appContext = context.applicationContext
     createDefaultChannel(appContext, configuration)
@@ -50,7 +50,7 @@ object Comraid {
    * Test seam: configure with injectable HTTP transport, token provider, and subscription store.
    */
   internal fun configureForTests(
-    configuration: ComraidConfiguration,
+    configuration: ComRaidConfiguration,
     transport: HttpTransport,
     tokenProvider: TokenProvider,
     subscriptionStore: SubscriptionStore,
@@ -75,12 +75,12 @@ object Comraid {
     }
   }
 
-  fun capabilities(context: Context): ComraidCapabilities {
+  fun capabilities(context: Context): ComRaidCapabilities {
     val alarmManager = context.getSystemService(AlarmManager::class.java)
     val exactAvailable = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()
     val permissionGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
       ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
-    return ComraidCapabilities(
+    return ComRaidCapabilities(
       notificationsEnabled = permissionGranted && NotificationManagerCompat.from(context).areNotificationsEnabled(),
       exactAlarmsAvailable = exactAvailable,
     )
@@ -181,13 +181,13 @@ object Comraid {
     current.api.optIn(subscriptionId, credential, channel = "push")
   }
 
-  fun schedule(request: ComraidScheduleRequest): ComraidScheduleResult {
+  fun schedule(request: ComRaidScheduleRequest): ComRaidScheduleResult {
     val current = requireRuntime()
-    val scheduler = current.scheduler ?: throw ComraidException.NotConfigured()
-    val store = current.scheduleStore ?: throw ComraidException.NotConfigured()
+    val scheduler = current.scheduler ?: throw ComRaidException.NotConfigured()
+    val store = current.scheduleStore ?: throw ComRaidException.NotConfigured()
     require(request.notification.id.isNotBlank()) { "Notification id must not be blank" }
     if (request.triggerAtMillis <= System.currentTimeMillis()) {
-      throw ComraidException.InvalidSchedule("triggerAtMillis must be in the future")
+      throw ComRaidException.InvalidSchedule("triggerAtMillis must be in the future")
     }
     val result = scheduler.schedule(request, current.configuration)
     store.put(request.copy(precision = result.appliedPrecision))
@@ -195,14 +195,14 @@ object Comraid {
   }
 
   fun startTimer(
-    notification: ComraidNotification,
+    notification: ComRaidNotification,
     durationMillis: Long,
     precision: SchedulePrecision = SchedulePrecision.INEXACT,
     fallbackPolicy: FallbackPolicy = FallbackPolicy.FAIL,
-  ): ComraidScheduleResult {
-    if (durationMillis <= 0) throw ComraidException.InvalidSchedule("durationMillis must be positive")
+  ): ComRaidScheduleResult {
+    if (durationMillis <= 0) throw ComRaidException.InvalidSchedule("durationMillis must be positive")
     return schedule(
-      ComraidScheduleRequest(
+      ComRaidScheduleRequest(
         notification = notification,
         triggerAtMillis = System.currentTimeMillis() + durationMillis,
         precision = precision,
@@ -213,15 +213,15 @@ object Comraid {
 
   fun cancel(id: String) {
     val current = requireRuntime()
-    val scheduler = current.scheduler ?: throw ComraidException.NotConfigured()
-    val store = current.scheduleStore ?: throw ComraidException.NotConfigured()
+    val scheduler = current.scheduler ?: throw ComRaidException.NotConfigured()
+    val store = current.scheduleStore ?: throw ComRaidException.NotConfigured()
     scheduler.cancel(id)
     store.remove(id)
   }
 
-  fun pendingSchedules(): List<ComraidScheduleRequest> {
+  fun pendingSchedules(): List<ComRaidScheduleRequest> {
     val current = requireRuntime()
-    val store = current.scheduleStore ?: throw ComraidException.NotConfigured()
+    val store = current.scheduleStore ?: throw ComRaidException.NotConfigured()
     return store.all()
   }
 
@@ -243,23 +243,23 @@ object Comraid {
     runtime?.scheduleStore?.remove(id)
   }
 
-  private fun validateConfiguration(configuration: ComraidConfiguration) {
+  private fun validateConfiguration(configuration: ComRaidConfiguration) {
     require(configuration.appId.isNotBlank()) { "appId is required (cr_app_…)" }
   }
 
   private fun requireRuntime(): Runtime =
-    runtime ?: throw ComraidException.NotConfigured()
+    runtime ?: throw ComRaidException.NotConfigured()
 
   private fun requireSubscription(current: Runtime): Pair<String, String> {
     val subscriptionId = current.subscriptionStore.subscriptionId
     val credential = current.subscriptionStore.credential
     if (subscriptionId.isNullOrBlank() || credential.isNullOrBlank()) {
-      throw ComraidException.NotReady()
+      throw ComRaidException.NotReady()
     }
     return subscriptionId to credential
   }
 
-  private fun createDefaultChannel(context: Context, configuration: ComraidConfiguration) {
+  private fun createDefaultChannel(context: Context, configuration: ComRaidConfiguration) {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
       val manager = context.getSystemService(NotificationManager::class.java)
       manager.createNotificationChannel(
@@ -273,7 +273,7 @@ object Comraid {
   }
 
   private data class Runtime(
-    val configuration: ComraidConfiguration,
+    val configuration: ComRaidConfiguration,
     val scheduleStore: ScheduleStore?,
     val scheduler: ComraidScheduler?,
     val subscriptionStore: SubscriptionStore,

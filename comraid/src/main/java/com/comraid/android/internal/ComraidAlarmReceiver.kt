@@ -1,4 +1,4 @@
-package com.comraide.android.internal
+package com.comraid.android.internal
 
 import android.Manifest
 import android.app.PendingIntent
@@ -11,23 +11,21 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
-import com.comraide.android.Comraid
 
 internal class ComraidAlarmReceiver : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent) {
-    val id = intent.getStringExtra(ComraidScheduler.EXTRA_ID) ?: return
-    val title = intent.getStringExtra(ComraidScheduler.EXTRA_TITLE) ?: return
-    val body = intent.getStringExtra(ComraidScheduler.EXTRA_BODY) ?: ""
-    val channelId = intent.getStringExtra(ComraidScheduler.EXTRA_CHANNEL_ID) ?: return
-    val icon = intent.getIntExtra(ComraidScheduler.EXTRA_SMALL_ICON, 0)
+    val id = ComraidScheduler.stringExtra(intent, ComraidScheduler.EXTRA_ID, ComraidScheduler.LEGACY_EXTRA_ID) ?: return
+    val title = ComraidScheduler.stringExtra(intent, ComraidScheduler.EXTRA_TITLE, ComraidScheduler.LEGACY_EXTRA_TITLE) ?: return
+    val body = ComraidScheduler.stringExtra(intent, ComraidScheduler.EXTRA_BODY, ComraidScheduler.LEGACY_EXTRA_BODY) ?: ""
+    val channelId = ComraidScheduler.stringExtra(intent, ComraidScheduler.EXTRA_CHANNEL_ID, ComraidScheduler.LEGACY_EXTRA_CHANNEL_ID) ?: return
+    val icon = ComraidScheduler.intExtra(intent, ComraidScheduler.EXTRA_SMALL_ICON, ComraidScheduler.LEGACY_EXTRA_SMALL_ICON, 0)
     if (icon == 0) return
     val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
       flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-      data = Uri.Builder().scheme("comraide").authority("notification").appendPath(id).build()
+      data = Uri.Builder().scheme(ComraidScheduler.SCHEME).authority("notification").appendPath(id).build()
       putExtra(ComraidScheduler.EXTRA_ID, id)
-      intent.extras?.keySet()
-        ?.filter { it.startsWith(ComraidScheduler.EXTRA_DATA_PREFIX) }
-        ?.forEach { key -> putExtra(key, intent.getStringExtra(key)) }
+      ComraidScheduler.dataPrefixKeys(intent)
+        .forEach { key -> putExtra(key, intent.getStringExtra(key)) }
     }
     val contentIntent = launchIntent?.let {
       PendingIntent.getActivity(

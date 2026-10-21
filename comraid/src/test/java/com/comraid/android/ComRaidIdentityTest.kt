@@ -1,10 +1,10 @@
-package com.comraide.android
+package com.comraid.android
 
-import com.comraide.android.internal.HttpRequest
-import com.comraide.android.internal.HttpResponse
-import com.comraide.android.internal.HttpTransport
-import com.comraide.android.internal.InMemorySubscriptionStore
-import com.comraide.android.internal.TokenProvider
+import com.comraid.android.internal.HttpRequest
+import com.comraid.android.internal.HttpResponse
+import com.comraid.android.internal.HttpTransport
+import com.comraid.android.internal.InMemorySubscriptionStore
+import com.comraid.android.internal.TokenProvider
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -13,19 +13,19 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
-class ComraidIdentityTest {
+class ComRaidIdentityTest {
   private lateinit var transport: RecordingTransport
   private lateinit var store: InMemorySubscriptionStore
   private lateinit var tokens: FakeTokenProvider
 
   @Before
   fun setUp() {
-    Comraid.resetForTests()
+    ComRaid.resetForTests()
     transport = RecordingTransport()
     store = InMemorySubscriptionStore()
     tokens = FakeTokenProvider("fcm-token-1")
-    Comraid.configureForTests(
-      configuration = ComraidConfiguration(
+    ComRaid.configureForTests(
+      configuration = ComRaidConfiguration(
         appId = "cr_app_test",
         smallIconResourceId = 1,
       ),
@@ -44,7 +44,7 @@ class ComraidIdentityTest {
       body = """{"subscription_id":"sub-1","contact_id":"c-1","external_user_id":"user_123","anonymous":false,"verified":false}""",
     )
 
-    Comraid.login("user_123")
+    ComRaid.login("user_123")
 
     val request = transport.requests.single()
     assertEquals("POST", request.method)
@@ -64,7 +64,7 @@ class ComraidIdentityTest {
       body = """{"subscription_id":"sub-1","contact_id":"c-1","external_user_id":"user_123","anonymous":false,"verified":true}""",
     )
 
-    Comraid.login("user_123", jwt = "jwt-from-backend")
+    ComRaid.login("user_123", jwt = "jwt-from-backend")
 
     val body = JSONObject(transport.requests.single().body!!)
     assertEquals("jwt-from-backend", body.getString("jwt"))
@@ -78,7 +78,7 @@ class ComraidIdentityTest {
       body = """{"subscription_id":"sub-1","active":false,"verified":false}""",
     )
 
-    Comraid.logout()
+    ComRaid.logout()
 
     val request = transport.requests.single()
     assertEquals("/mobile/subscriptions/sub-1/logout", request.path)
@@ -96,7 +96,7 @@ class ComraidIdentityTest {
       body = """{"subscription_id":"sub-1","contact_id":"c-1","channel":"push","opted_out":true}""",
     )
 
-    Comraid.optOut()
+    ComRaid.optOut()
 
     val request = transport.requests.single()
     assertEquals("/mobile/subscriptions/sub-1/opt-out", request.path)
@@ -113,7 +113,7 @@ class ComraidIdentityTest {
       body = """{"subscription_id":"sub-1","contact_id":"c-1","channel":"push","opted_out":false}""",
     )
 
-    Comraid.optIn()
+    ComRaid.optIn()
 
     val request = transport.requests.single()
     assertEquals("/mobile/subscriptions/sub-1/opt-in", request.path)
@@ -129,8 +129,8 @@ class ComraidIdentityTest {
       HttpResponse(200, """{"subscription_id":"sub-1","contact_id":"c-1","channel":"push","opted_out":true}"""),
     )
 
-    Comraid.logout()
-    Comraid.optOut()
+    ComRaid.logout()
+    ComRaid.optOut()
 
     assertEquals(2, transport.requests.size)
     assertEquals("/mobile/subscriptions/sub-1/opt-out", transport.requests[1].path)
@@ -139,16 +139,16 @@ class ComraidIdentityTest {
 
   @Test
   fun login_before_configure_throws_not_configured() {
-    Comraid.resetForTests()
-    assertThrows(ComraidException.NotConfigured::class.java) {
-      Comraid.login("user_123")
+    ComRaid.resetForTests()
+    assertThrows(ComRaidException.NotConfigured::class.java) {
+      ComRaid.login("user_123")
     }
   }
 
   @Test
   fun login_before_subscription_ready_throws_not_ready() {
-    assertThrows(ComraidException.NotReady::class.java) {
-      Comraid.login("user_123")
+    assertThrows(ComRaidException.NotReady::class.java) {
+      ComRaid.login("user_123")
     }
   }
 
@@ -159,7 +159,7 @@ class ComraidIdentityTest {
       body = """{"subscription_id":"sub-new","subscription_credential":"cred-new","channel":"push","anonymous":true,"platform":"android","provider":"fcm"}""",
     )
 
-    Comraid.register()
+    ComRaid.register()
 
     val request = transport.requests.single()
     assertEquals("/mobile/subscriptions", request.path)
@@ -180,7 +180,7 @@ class ComraidIdentityTest {
       body = """{"subscription_id":"sub-1","anonymous":true,"platform":"android","provider":"fcm","verified":false,"token_version":2}""",
     )
 
-    Comraid.onPushTokenRefresh()
+    ComRaid.onPushTokenRefresh()
 
     val request = transport.requests.single()
     assertEquals("/mobile/subscriptions/sub-1/token", request.path)
@@ -199,7 +199,7 @@ class ComraidIdentityTest {
       body = """{"subscription_id":"sub-3","subscription_credential":"cred-3","channel":"push","anonymous":true,"platform":"android","provider":"fcm"}""",
     )
 
-    Comraid.onPushTokenRefresh()
+    ComRaid.onPushTokenRefresh()
 
     assertEquals("/mobile/subscriptions", transport.requests.single().path)
     assertEquals("sub-3", store.subscriptionId)
@@ -207,10 +207,10 @@ class ComraidIdentityTest {
 
   @Test
   fun configure_requires_app_id() {
-    Comraid.resetForTests()
+    ComRaid.resetForTests()
     assertThrows(IllegalArgumentException::class.java) {
-      Comraid.configureForTests(
-        configuration = ComraidConfiguration(appId = "  ", smallIconResourceId = 1),
+      ComRaid.configureForTests(
+        configuration = ComRaidConfiguration(appId = "  ", smallIconResourceId = 1),
         transport = transport,
         tokenProvider = tokens,
         subscriptionStore = store,
@@ -228,10 +228,10 @@ class ComraidIdentityTest {
       HttpResponse(200, """{"subscription_id":"sub-1","contact_id":"c-1","channel":"push","opted_out":false}"""),
     )
 
-    Comraid.login("u")
-    Comraid.logout()
-    Comraid.optOut()
-    Comraid.optIn()
+    ComRaid.login("u")
+    ComRaid.logout()
+    ComRaid.optOut()
+    ComRaid.optIn()
 
     transport.requests.forEach { request ->
       assertFalse(request.body!!.contains("external_id"))
