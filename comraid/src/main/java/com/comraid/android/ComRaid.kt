@@ -230,15 +230,15 @@ object ComRaid {
   }
 
   /**
-   * Upsert Contact Attributes for the logged-in External user ID
-   * (`PUT /contacts/{external_user_id}/attributes`).
+   * Upsert Contact Attributes for the logged-in Contact
+   * (`PUT /mobile/subscriptions/{id}/attributes`).
    */
   fun setAttributes(attributes: Map<String, Any?>) {
     val current = requireRuntime()
-    val externalUserId = current.externalUserId
-      ?: throw ComRaidException.NotReady()
+    current.externalUserId ?: throw ComRaidException.NotReady()
     require(attributes.isNotEmpty()) { "attributes must not be empty" }
-    current.api.upsertAttributes(externalUserId, attributes)
+    val (subscriptionId, credential) = requireSubscription(current)
+    current.api.upsertAttributes(subscriptionId, credential, attributes)
   }
 
   /** Enqueue + flush a delivered ACK. Returns false when ids are blank. */

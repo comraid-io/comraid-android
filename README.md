@@ -57,6 +57,15 @@ ComRaid.acknowledgeOpened(deliveryId, attributionToken, actionId = "accept")
 ComRaid.flushAcks()
 ```
 
+## Deep links and rich fields
+
+API `content.push.deep_link` arrives in FCM data as `cr_deep_link`. On notification open, read it from the payload map passed through `EXTRA_DATA_JSON` (tap / action handlers) or from `RemoteMessage.data` when you own presentation.
+
+- When FCM includes a system `notification` block, Android applies sound / tag / notification count from the provider; the host still reads `cr_deep_link` on open for in-app navigation.
+- When the SDK builds the tray notification (data-first payloads or action buttons), the content intent uses `cr_deep_link` when it is a valid URI and launches it after the opened ACK. Host apps still own intent-filter / routing setup.
+
+Other rich fields (`sound`, `badge`, `thread_id`, `subtitle`) are primarily provider/OS presentation; `subtitle` is iOS-oriented and ignored on Android system trays.
+
 ## Local timers
 
 ```kotlin

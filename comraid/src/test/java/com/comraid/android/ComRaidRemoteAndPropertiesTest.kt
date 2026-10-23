@@ -75,9 +75,11 @@ class ComRaidRemoteAndPropertiesTest {
 
     val request = transport.requests[1]
     assertEquals("PUT", request.method)
-    assertEquals("/contacts/user_123/attributes", request.path)
+    assertEquals("/mobile/subscriptions/sub-1/attributes", request.path)
     assertEquals("cr_app_test", request.headers["X-ComRaid-App-Id"])
-    val attrs = JSONObject(request.body!!).getJSONObject("attributes")
+    val body = JSONObject(request.body!!)
+    assertEquals("cred-1", body.getString("subscription_credential"))
+    val attrs = body.getJSONObject("attributes")
     assertEquals("premium", attrs.getString("plan"))
     assertEquals(2, attrs.getInt("tier"))
   }
