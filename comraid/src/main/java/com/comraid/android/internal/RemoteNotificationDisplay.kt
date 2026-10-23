@@ -21,11 +21,12 @@ internal object RemoteNotificationDisplay {
     val deliveryId = data["cr_delivery_id"] ?: "comraid-remote"
     val notificationId = deliveryId.hashCode() and Int.MAX_VALUE
 
+    val contentOpenUri = PushPayload.contentOpenUri(deliveryId, data)
     val contentIntent = PendingIntent.getBroadcast(
       context,
       notificationId,
       Intent(context, ComraidNotificationActionReceiver::class.java)
-        .setData(Uri.parse("comraid://open/$deliveryId"))
+        .setData(Uri.parse(contentOpenUri))
         .putExtra(ComraidNotificationActionReceiver.EXTRA_KIND, "opened")
         .putExtra(ComraidNotificationActionReceiver.EXTRA_DATA_JSON, PushPayload.toJsonObject(data).toString()),
       PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
