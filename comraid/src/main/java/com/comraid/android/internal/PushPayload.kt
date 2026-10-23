@@ -2,6 +2,7 @@ package com.comraid.android.internal
 
 import org.json.JSONArray
 import org.json.JSONObject
+import java.net.URI
 
 internal data class DeliveryAttribution(
   val deliveryId: String,
@@ -38,6 +39,25 @@ internal object PushPayload {
       androidChannelId = data["cr_android_channel_id"]?.takeIf { it.isNotBlank() },
     )
   }
+
+  /**
+   * First-class deep link from API `content.push.deep_link`, delivered as `cr_deep_link`.
+   * Returns null when missing, blank, or not a scheme-bearing URI.
+   */
+  fun deepLink(data: Map<String, String>?): String? {
+    val raw = data?.get("cr_deep_link")?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+    return runCatching {
+      val uri = URI(raw)
+      if (uri.scheme.isNullOrBlank()) null else raw
+    }.getOrNull()
+  }
+
+  /**
+   * URI for SDK-built tray content intent: prefer [deepLink], else attribution-only open.
+   */
+  fun contentOpenUri(deliveryId: String, data: Map<String, String>?): String =
+    deepLink(data) ?: "comraid://open/$deliveryId"
+
 
   fun actions(data: Map<String, String>?): List<PushAction> {
     val raw = data?.get("cr_actions")?.takeIf { it.isNotBlank() } ?: return emptyList()
