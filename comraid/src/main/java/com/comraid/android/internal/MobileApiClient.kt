@@ -82,11 +82,13 @@ internal class MobileApiClient(
     requireSuccess(response, expected = setOf(200))
   }
 
-  fun upsertAttributes(externalUserId: String, attributes: Map<String, Any?>) {
+  fun upsertAttributes(subscriptionId: String, credential: String, attributes: Map<String, Any?>) {
     val attrs = JSONObject()
     attributes.forEach { (key, value) -> attrs.put(key, value ?: JSONObject.NULL) }
-    val body = JSONObject().put("attributes", attrs)
-    val response = put("/contacts/$externalUserId/attributes", body)
+    val body = JSONObject()
+      .put("subscription_credential", credential)
+      .put("attributes", attrs)
+    val response = put("/mobile/subscriptions/$subscriptionId/attributes", body)
     requireSuccess(response, expected = setOf(200))
   }
 
