@@ -8,6 +8,7 @@ import com.comraid.android.internal.TokenProvider
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -82,6 +83,40 @@ class ComRaidRemoteAndPropertiesTest {
     val attrs = body.getJSONObject("attributes")
     assertEquals("premium", attrs.getString("plan"))
     assertEquals(2, attrs.getInt("tier"))
+  }
+
+  @Test
+  fun setAttributes_empty_map_after_login_puts_empty_attributes_body() {
+    store.save(subscriptionId = "sub-1", credential = "cred-1")
+    transport.enqueue(
+      HttpResponse(
+        200,
+        """{"subscription_id":"sub-1","contact_id":"c-1","external_user_id":"user_123","anonymous":false,"verified":false}""",
+      ),
+      HttpResponse(200, """{"contact_id":"c-1","external_user_id":"user_123","updated_attributes":[]}"""),
+    )
+
+    ComRaid.login("user_123")
+    ComRaid.setAttributes(emptyMap())
+
+    val request = transport.requests[1]
+    assertEquals("PUT", request.method)
+    assertEquals("/mobile/subscriptions/sub-1/attributes", request.path)
+    assertEquals("cr_app_test", request.headers["X-ComRaid-App-Id"])
+    val body = JSONObject(request.body!!)
+    assertEquals("cred-1", body.getString("subscription_credential"))
+    val attrs = body.getJSONObject("attributes")
+    assertEquals(0, attrs.length())
+  }
+
+  @Test
+  fun setAttributes_before_login_throws_not_ready() {
+    store.save(subscriptionId = "sub-1", credential = "cred-1")
+
+    assertThrows(ComRaidException.NotReady::class.java) {
+      ComRaid.setAttributes(emptyMap())
+    }
+    assertTrue(transport.requests.isEmpty())
   }
 
   @Test

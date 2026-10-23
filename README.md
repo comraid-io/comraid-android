@@ -148,9 +148,9 @@ Upsert Contact Attributes for the logged-in Contact (`PUT /mobile/subscriptions/
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `attributes` | `Map<String, Any?>` | Non-empty Attribute map (e.g. `plan` → `premium`). |
+| `attributes` | `Map<String, Any?>` | Attribute map (e.g. `plan` → `premium`). Empty map is a successful empty update. |
 
-**Returns:** `Unit`. Throws `NotReady` if not logged in; requires non-empty map.
+**Returns:** `Unit`. Throws `NotReady` if not logged in.
 
 ```kotlin
 ComRaid.setDeviceProperties(
