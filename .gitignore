@@ -1,0 +1,32 @@
+# Gradle
+.gradle/
+build/
+**/build/
+
+# Local machine / IDE
+local.properties
+*.iml
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+
+# Captures / signing
+*.apk
+*.aap
+*.aab
+*.ap_
+*.dex
+*.class
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Kotlin / Android Studio
+.kotlin/
+*.hprof
+.worktrees/
