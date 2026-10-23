@@ -55,4 +55,34 @@ class PushPayloadTest {
     assertEquals("NBody", data["cr_body"])
     assertTrue(data.containsKey("cr_delivery_id"))
   }
+
+  @Test
+  fun deepLink_reads_cr_deep_link_when_valid_uri() {
+    assertNull(PushPayload.deepLink(emptyMap()))
+    assertNull(PushPayload.deepLink(mapOf("cr_deep_link" to "   ")))
+    assertNull(PushPayload.deepLink(mapOf("cr_deep_link" to "not-a-uri")))
+    assertEquals(
+      "myapp://orders/42",
+      PushPayload.deepLink(mapOf("cr_deep_link" to "myapp://orders/42")),
+    )
+    assertEquals(
+      "https://example.com/o/1",
+      PushPayload.deepLink(mapOf("cr_deep_link" to " https://example.com/o/1 ")),
+    )
+  }
+
+  @Test
+  fun contentOpenUri_prefers_deep_link_else_attribution_open() {
+    assertEquals(
+      "comraid://open/d1",
+      PushPayload.contentOpenUri("d1", mapOf("cr_title" to "Hi")),
+    )
+    assertEquals(
+      "myapp://orders/42",
+      PushPayload.contentOpenUri(
+        "d1",
+        mapOf("cr_deep_link" to "myapp://orders/42"),
+      ),
+    )
+  }
 }
