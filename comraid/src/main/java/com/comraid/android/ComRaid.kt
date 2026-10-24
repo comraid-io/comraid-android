@@ -236,7 +236,6 @@ object ComRaid {
   fun setAttributes(attributes: Map<String, Any?>) {
     val current = requireRuntime()
     current.externalUserId ?: throw ComRaidException.NotReady()
-    require(attributes.isNotEmpty()) { "attributes must not be empty" }
     val (subscriptionId, credential) = requireSubscription(current)
     current.api.upsertAttributes(subscriptionId, credential, attributes)
   }
