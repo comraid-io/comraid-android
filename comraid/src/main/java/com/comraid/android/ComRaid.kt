@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.Activity
 import android.app.AlarmManager
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.app.ActivityCompat
@@ -12,11 +13,15 @@ import androidx.core.content.ContextCompat
 import com.comraid.android.internal.AckKind
 import com.comraid.android.internal.AckQueue
 import com.comraid.android.internal.AckQueueStore
+import com.comraid.android.internal.BackgroundAckHelpers
+import com.comraid.android.internal.ComraidNotificationOpenActivity
 import com.comraid.android.internal.ComraidScheduler
 import com.comraid.android.internal.FcmTokenProvider
 import com.comraid.android.internal.HttpTransport
 import com.comraid.android.internal.MobileApiClient
 import com.comraid.android.internal.NotificationChannels
+import com.comraid.android.internal.RemoteMessageMapper
+import com.comraid.android.internal.RemoteNotificationDisplay
 import com.comraid.android.internal.ScheduleStore
 import com.comraid.android.internal.SdkConfigStore
 import com.comraid.android.internal.SharedPreferencesAckQueueStore
@@ -24,16 +29,34 @@ import com.comraid.android.internal.SharedPreferencesSubscriptionStore
 import com.comraid.android.internal.SubscriptionStore
 import com.comraid.android.internal.TokenProvider
 import com.comraid.android.internal.UrlConnectionHttpTransport
+import java.util.concurrent.CopyOnWriteArrayList
+
+fun interface RemoteMessageListener {
+  fun onRemoteMessage(event: RemoteMessageEvent)
+}
+
+fun interface TokenRefreshListener {
+  fun onTokenRefresh(token: String)
+}
 
 object ComRaid {
   private const val PERMISSION_REQUEST_CODE = 24_601
   private val lock = Any()
   @Volatile private var runtime: Runtime? = null
   @Volatile private var permissionCallback: ((Boolean) -> Unit)? = null
+  @Volatile private var applicationContext: Context? = null
+  @Volatile private var initialNotification: RemoteMessageEvent? = null
+  @Volatile private var initialNotificationConsumed = false
+  @Volatile private var backgroundHandlerRegistered = false
+  private val foregroundMessageListeners = CopyOnWriteArrayList<RemoteMessageListener>()
+  private val backgroundMessageListeners = CopyOnWriteArrayList<RemoteMessageListener>()
+  private val openedListeners = CopyOnWriteArrayList<RemoteMessageListener>()
+  private val tokenRefreshListeners = CopyOnWriteArrayList<TokenRefreshListener>()
 
   fun configure(context: Context, configuration: ComRaidConfiguration) {
     validateConfiguration(configuration)
     val appContext = context.applicationContext
+    applicationContext = appContext
     SdkConfigStore(appContext).save(configuration)
     NotificationChannels.ensureDefault(appContext, configuration)
     val store = SharedPreferencesSubscriptionStore(appContext)
@@ -104,7 +127,167 @@ object ComRaid {
     synchronized(lock) {
       runtime = null
       permissionCallback = null
+      applicationContext = null
+      initialNotification = null
+      initialNotificationConsumed = false
+      backgroundHandlerRegistered = false
+      foregroundMessageListeners.clear()
+      backgroundMessageListeners.clear()
+      openedListeners.clear()
+      tokenRefreshListeners.clear()
     }
+  }
+
+  /**
+   * Provider push token (FCM). Not a ComRaid Endpoint / Subscription id.
+   */
+  fun getToken(): String = requireRuntime().tokenProvider.currentToken()
+
+  fun addForegroundMessageListener(listener: RemoteMessageListener) {
+    foregroundMessageListeners.addIfAbsent(listener)
+  }
+
+  fun removeForegroundMessageListener(listener: RemoteMessageListener) {
+    foregroundMessageListeners.remove(listener)
+  }
+
+  fun addBackgroundMessageListener(listener: RemoteMessageListener) {
+    backgroundMessageListeners.addIfAbsent(listener)
+  }
+
+  fun removeBackgroundMessageListener(listener: RemoteMessageListener) {
+    backgroundMessageListeners.remove(listener)
+  }
+
+  fun addNotificationOpenedListener(listener: RemoteMessageListener) {
+    openedListeners.addIfAbsent(listener)
+  }
+
+  fun removeNotificationOpenedListener(listener: RemoteMessageListener) {
+    openedListeners.remove(listener)
+  }
+
+  fun addTokenRefreshListener(listener: TokenRefreshListener) {
+    tokenRefreshListeners.addIfAbsent(listener)
+  }
+
+  fun removeTokenRefreshListener(listener: TokenRefreshListener) {
+    tokenRefreshListeners.remove(listener)
+  }
+
+  /**
+   * Cold-start tap payload, if any. Cleared after the first successful read.
+   */
+  fun getInitialNotification(): RemoteMessageEvent? {
+    synchronized(lock) {
+      if (initialNotificationConsumed) return null
+      val value = initialNotification ?: return null
+      initialNotificationConsumed = true
+      initialNotification = null
+      return value
+    }
+  }
+
+  /**
+   * Consume a host Activity launch [Intent] (system-tray tap with `cr_*` extras).
+   * Records opened when attribution is present and surfaces
+   * [getInitialNotification] / opened listeners.
+   */
+  fun consumeLaunchIntent(intent: Intent?, coldStart: Boolean = false): RemoteMessageEvent? {
+    if (intent == null) return null
+    val data = ComraidNotificationOpenActivity.dataFromIntent(intent) ?: return null
+    val actionId = intent.getStringExtra(ComraidNotificationOpenActivity.EXTRA_ACTION_ID)
+      ?: intent.getStringExtra(com.comraid.android.internal.ComraidNotificationActionReceiver.EXTRA_ACTION_ID)
+    val event = RemoteMessageMapper.toEvent(data, actionId)
+    val helpers = applicationContext?.let { BackgroundAckHelpers.from(it) }
+    if (helpers != null) {
+      helpers.queue.enqueueFromPayload(AckKind.OPENED, data, actionId)
+      helpers.queue.flush()
+    }
+    if (coldStart) {
+      synchronized(lock) {
+        if (!initialNotificationConsumed && initialNotification == null) {
+          initialNotification = event
+        }
+      }
+    }
+    openedListeners.forEach { runCatching { it.onRemoteMessage(event) } }
+    return event
+  }
+
+  /**
+   * Post a local tray item from a received message's title/body/actions (optional promotion).
+   * Body/action taps auto ACK opened (with actionId for actions).
+   */
+  fun presentNotification(event: RemoteMessageEvent) {
+    val ctx = applicationContext ?: throw ComRaidException.NotConfigured()
+    val configuration = runtime?.configuration
+      ?: SdkConfigStore(ctx).load()
+      ?: throw ComRaidException.NotConfigured()
+    val title = event.title?.takeIf { it.isNotBlank() }
+      ?: throw IllegalArgumentException("presentNotification requires a non-blank title")
+    val actionsJson = if (event.actions.isNotEmpty()) {
+      org.json.JSONArray(
+        event.actions.map { action ->
+          org.json.JSONObject().apply {
+            put("id", action.id)
+            put("text", action.text)
+            action.icon?.let { put("icon", it) }
+          }
+        },
+      ).toString()
+    } else {
+      null
+    }
+    val payload = buildMap {
+      event.deliveryId?.let { put("cr_delivery_id", it) }
+      event.attributionToken?.let { put("cr_attribution_token", it) }
+      event.messageId?.let { put("cr_message_id", it) }
+      put("cr_title", title)
+      put("cr_body", event.body.orEmpty())
+      event.deepLink?.let { put("cr_deep_link", it) }
+      actionsJson?.let { put("cr_actions", it) }
+      putAll(event.data)
+    }
+    NotificationChannels.ensureDefault(ctx, configuration)
+    RemoteNotificationDisplay.show(ctx, configuration, payload)
+  }
+
+  /**
+   * Marks that a JS background message handler is registered (RN Headless path).
+   * Receive still never auto-opens; this only gates background event delivery to JS.
+   */
+  fun setBackgroundHandlerRegistered(registered: Boolean) {
+    backgroundHandlerRegistered = registered
+  }
+
+  fun isBackgroundHandlerRegistered(): Boolean = backgroundHandlerRegistered
+
+  /** Present from raw FCM-shaped data map (title via `cr_title`). */
+  fun presentNotification(data: Map<String, String>) {
+    presentNotification(RemoteMessageMapper.toEvent(data))
+  }
+
+  internal fun notifyMessageReceived(data: Map<String, String>, appInForeground: Boolean) {
+    val event = RemoteMessageMapper.toEvent(data)
+    val targets = if (appInForeground) foregroundMessageListeners else backgroundMessageListeners
+    targets.forEach { runCatching { it.onRemoteMessage(event) } }
+  }
+
+  internal fun notifyNotificationOpened(data: Map<String, String>, actionId: String?) {
+    val event = RemoteMessageMapper.toEvent(data, actionId)
+    synchronized(lock) {
+      if (!initialNotificationConsumed && initialNotification == null && openedListeners.isEmpty()) {
+        // Cold path before JS listeners attach: stash for getInitialNotification.
+        initialNotification = event
+      }
+    }
+    openedListeners.forEach { runCatching { it.onRemoteMessage(event) } }
+  }
+
+  internal fun notifyTokenRefresh(token: String) {
+    if (token.isBlank()) return
+    tokenRefreshListeners.forEach { runCatching { it.onTokenRefresh(token) } }
   }
 
   fun capabilities(context: Context): ComRaidCapabilities {
@@ -187,6 +370,7 @@ object ComRaid {
       val result = current.api.register(token, current.deviceProperties)
       current.subscriptionStore.save(result.subscriptionId, result.credential)
     }
+    notifyTokenRefresh(token)
   }
 
   fun login(externalUserId: String, jwt: String? = null) {

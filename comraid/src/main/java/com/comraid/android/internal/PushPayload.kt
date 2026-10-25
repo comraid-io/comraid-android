@@ -23,12 +23,48 @@ internal data class PushDisplay(
 )
 
 internal object PushPayload {
+  /** Reserved `cr_*` keys — stripped from the RN/event `data` map so sender keys stay unchanged. */
+  private val reservedKeys = setOf(
+    "cr_delivery_id",
+    "cr_attribution_token",
+    "cr_message_id",
+    "cr_message_recipient_id",
+    "cr_title",
+    "cr_body",
+    "cr_image_url",
+    "cr_android_channel_id",
+    "cr_deep_link",
+    "cr_actions",
+    "cr_data_only",
+  )
+
   fun attribution(data: Map<String, String>?): DeliveryAttribution? {
     if (data == null) return null
     val deliveryId = data["cr_delivery_id"]?.trim()?.takeIf { it.isNotEmpty() } ?: return null
     val token = data["cr_attribution_token"]?.trim()?.takeIf { it.isNotEmpty() } ?: return null
     return DeliveryAttribution(deliveryId = deliveryId, attributionToken = token)
   }
+
+  fun isDataOnly(data: Map<String, String>?): Boolean {
+    val raw = data?.get("cr_data_only")?.trim()?.lowercase() ?: return false
+    return raw == "true" || raw == "1"
+  }
+
+  fun messageId(data: Map<String, String>?): String? =
+    data?.get("cr_message_id")?.trim()?.takeIf { it.isNotEmpty() }
+
+  /** Sender `data` keys only — ComRaid reserved `cr_*` keys removed. */
+  fun senderData(data: Map<String, String>?): Map<String, String> {
+    if (data == null) return emptyMap()
+    return data.filterKeys { key -> key !in reservedKeys && !key.startsWith("cr_") }
+  }
+
+  /** Pack payload into launch-intent extras for system-tray / trampoline opens. */
+  fun openIntentExtras(data: Map<String, String>): Map<String, String> = data.toMap()
+
+  /** Restore payload map from launch-intent string extras (ignores non-string extras). */
+  fun fromIntentExtras(extras: Map<String, String?>): Map<String, String> =
+    extras.mapNotNull { (k, v) -> v?.let { k to it } }.toMap()
 
   fun display(data: Map<String, String>?): PushDisplay {
     if (data == null) return PushDisplay(title = "", body = "")
