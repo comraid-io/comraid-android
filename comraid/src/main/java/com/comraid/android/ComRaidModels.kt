@@ -8,6 +8,11 @@ data class ComRaidConfiguration(
   val defaultChannelId: String = "comraid.general",
   val defaultChannelName: String = "General",
   val smallIconResourceId: Int,
+  /**
+   * When true (default), non–data-only Notifications are shown by the SDK while the app is
+   * in the foreground. Set false to handle alerts only via receive listeners / `onMessage`.
+   */
+  val displayForegroundNotifications: Boolean = true,
 ) {
   companion object {
     const val DEFAULT_API_BASE_URL = "https://api.comraid.io"
