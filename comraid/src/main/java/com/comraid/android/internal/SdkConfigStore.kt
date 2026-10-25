@@ -19,6 +19,7 @@ internal class SdkConfigStore(context: Context) {
       putString(KEY_CHANNEL_ID, configuration.defaultChannelId)
       putString(KEY_CHANNEL_NAME, configuration.defaultChannelName)
       putInt(KEY_SMALL_ICON, configuration.smallIconResourceId)
+      putBoolean(KEY_DISPLAY_FOREGROUND, configuration.displayForegroundNotifications)
     }
   }
 
@@ -34,6 +35,7 @@ internal class SdkConfigStore(context: Context) {
       defaultChannelId = preferences.getString(KEY_CHANNEL_ID, "comraid.general") ?: "comraid.general",
       defaultChannelName = preferences.getString(KEY_CHANNEL_NAME, "General") ?: "General",
       smallIconResourceId = icon,
+      displayForegroundNotifications = preferences.getBoolean(KEY_DISPLAY_FOREGROUND, true),
     )
   }
 
@@ -44,5 +46,6 @@ internal class SdkConfigStore(context: Context) {
     const val KEY_CHANNEL_ID = "default_channel_id"
     const val KEY_CHANNEL_NAME = "default_channel_name"
     const val KEY_SMALL_ICON = "small_icon"
+    const val KEY_DISPLAY_FOREGROUND = "display_foreground_notifications"
   }
 }

@@ -3,6 +3,13 @@
   <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
   <application>
+    <activity
+      android:name=".internal.ComraidNotificationOpenActivity"
+      android:exported="false"
+      android:excludeFromRecents="true"
+      android:noHistory="true"
+      android:taskAffinity=""
+      android:theme="@android:style/Theme.Translucent.NoTitleBar" />
     <receiver
       android:name=".internal.ComraidAlarmReceiver"
       android:exported="false" />

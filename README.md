@@ -90,6 +90,43 @@ Handles FCM token rotation. Prefer replace-token when a Subscription credential 
 
 **Returns:** `Unit`. Requires prior `configure`.
 
+#### `getToken(): String`
+
+Returns the Provider push token (FCM). Not a ComRaid Endpoint / Subscription id.
+
+**Returns:** FCM registration token. Requires prior `configure`.
+
+#### `getInitialNotification(): RemoteMessageEvent?`
+
+Returns the notification tap that cold-started the app, if any. Cleared after the first read.
+
+**Returns:** `RemoteMessageEvent?`.
+
+#### `consumeLaunchIntent(intent: Intent?, coldStart: Boolean = false): RemoteMessageEvent?`
+
+Reads `cr_*` extras from a system-tray / launcher launch intent, records opened, and surfaces open listeners / initial notification.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `intent` | `Intent?` | Host Activity launch intent. |
+| `coldStart` | `Boolean` | When true, stash for [getInitialNotification]. |
+
+**Returns:** Parsed event, or null when no ComRaid payload is present.
+
+#### `presentNotification(event: RemoteMessageEvent)` / `presentNotification(data: Map<String, String>)`
+
+Posts a local tray item from title/body/actions (optional Data-only promotion). Body/action taps auto-ACK opened (with `actionId` for actions). Data-only Notifications are never auto-drawn on receive — call this when the app wants shade UI.
+
+**Returns:** `Unit`. Requires prior `configure` (or persisted SdkConfigStore).
+
+`ComRaidConfiguration.displayForegroundNotifications` (default `true`) controls whether non–data-only alerts are shown by the SDK in the foreground; set `false` to handle alerts only via receive listeners.
+
+#### `setBackgroundHandlerRegistered(registered: Boolean)`
+
+Records that a JS background message handler is registered (React Native). Does not change ACK behavior; receive never auto-opens.
+
+**Returns:** `Unit`.
+
 #### `login(externalUserId: String, jwt: String? = null)`
 
 Binds the current Subscription to a known Contact (`external_user_id`). Optional Identity verification JWT from your backend.
