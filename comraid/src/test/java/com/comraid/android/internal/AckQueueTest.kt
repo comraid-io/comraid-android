@@ -151,6 +151,32 @@ class AckQueueTest {
     assertEquals(null, storage.get(queue.storageKey()))
   }
 
+  @Test
+  fun test_send_payload_without_delivery_ids_makes_no_ack_request() {
+    // Test sends omit cr_delivery_id / cr_attribution_token; receive still runs but must not ACK.
+    val enqueued = queue.enqueueFromPayload(
+      AckKind.DELIVERED,
+      mapOf(
+        "cr_title" to "Test",
+        "cr_body" to "Hello",
+      ),
+    )
+    assertEquals(false, enqueued)
+    assertEquals(null, storage.get(queue.storageKey()))
+    queue.flush()
+    assertEquals(0, transport.requests.size)
+
+    assertEquals(
+      false,
+      queue.enqueueFromPayload(
+        AckKind.OPENED,
+        mapOf("cr_delivery_id" to "d-only"), // token missing
+      ),
+    )
+    queue.flush()
+    assertEquals(0, transport.requests.size)
+  }
+
   private class InMemoryAckQueueStore : AckQueueStore {
     private val map = mutableMapOf<String, String>()
 
