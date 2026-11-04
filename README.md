@@ -205,18 +205,18 @@ Remote messages enqueue durable delivered/opened ACKs (persisted SharedPreferenc
 
 #### `acknowledgeDelivered(deliveryId: String, attributionToken: String): Boolean`
 
-Enqueue + flush a delivered ACK.
+Enqueue a delivered ACK and flush it on the SDK's background thread (safe from any thread).
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `deliveryId` | `String` | Delivery id from the push payload. |
 | `attributionToken` | `String` | Attribution token from the push payload. |
 
-**Returns:** `false` when either id is blank; otherwise `true` after enqueue/flush.
+**Returns:** `false` when either id is blank; otherwise `true` once the ACK is queued.
 
 #### `acknowledgeOpened(deliveryId: String, attributionToken: String, actionId: String? = null): Boolean`
 
-Enqueue + flush an opened ACK (optional action button id).
+Enqueue an opened ACK (optional action button id) and flush it on the SDK's background thread.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
@@ -224,7 +224,7 @@ Enqueue + flush an opened ACK (optional action button id).
 | `attributionToken` | `String` | Attribution token from the push payload. |
 | `actionId` | `String?` | Optional action button id. |
 
-**Returns:** `false` when either id is blank; otherwise `true`.
+**Returns:** `false` when either id is blank; otherwise `true` once the ACK is queued.
 
 #### `flushAcks()`
 

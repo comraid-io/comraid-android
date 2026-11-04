@@ -420,7 +420,10 @@ object ComRaid {
     current.api.upsertAttributes(subscriptionId, credential, attributes)
   }
 
-  /** Enqueue + flush a delivered ACK. Returns false when ids are blank. */
+  /**
+   * Enqueue a delivered ACK and flush it on the SDK's background thread, so any thread may call it.
+   * Returns false when ids are blank.
+   */
   fun acknowledgeDelivered(deliveryId: String, attributionToken: String): Boolean {
     val current = requireRuntime()
     if (deliveryId.isBlank() || attributionToken.isBlank()) return false
@@ -431,11 +434,11 @@ object ComRaid {
         "cr_attribution_token" to attributionToken.trim(),
       ),
     )
-    current.ackQueue.flush()
+    current.ackQueue.flushAsync()
     return true
   }
 
-  /** Enqueue + flush an opened ACK (optional action button id). */
+  /** Enqueue an opened ACK (optional action button id) and flush it on the SDK's background thread. */
   fun acknowledgeOpened(
     deliveryId: String,
     attributionToken: String,
@@ -451,7 +454,7 @@ object ComRaid {
       ),
       actionId = actionId,
     )
-    current.ackQueue.flush()
+    current.ackQueue.flushAsync()
     return true
   }
 

@@ -52,7 +52,7 @@ class ComRaidRemoteAndPropertiesTest {
 
     ComRaid.register()
 
-    val body = JSONObject(transport.requests.single().body!!)
+    val body = JSONObject(transport.awaitRequests(1).single().body!!)
     assertEquals("2.1.0", body.getString("app_version"))
     val device = body.getJSONObject("device")
     assertEquals("Pixel 8", device.getString("model"))
@@ -129,7 +129,7 @@ class ComRaidRemoteAndPropertiesTest {
     )
 
     assertTrue(ok)
-    val request = transport.requests.single()
+    val request = transport.awaitRequests(1).single()
     assertEquals("/deliveries/d1/delivered", request.path)
     assertEquals("tok", JSONObject(request.body!!).getString("attribution_token"))
   }
@@ -145,7 +145,7 @@ class ComRaidRemoteAndPropertiesTest {
         actionId = "accept",
       ),
     )
-    val body = JSONObject(transport.requests.single().body!!)
+    val body = JSONObject(transport.awaitRequests(1).single().body!!)
     assertEquals("accept", body.getString("action_id"))
     assertEquals("/deliveries/d1/opened", transport.requests.single().path)
   }
@@ -164,15 +164,22 @@ class ComRaidRemoteAndPropertiesTest {
 
     assertEquals("sub-1", store.subscriptionId)
     assertEquals("cred-1", store.credential)
-    val body = JSONObject(transport.requests.single().body!!)
+    val body = JSONObject(transport.awaitRequests(1).single().body!!)
     assertEquals("3.0.0", body.getString("app_version"))
     assertEquals("Pixel", body.getJSONObject("device").getString("model"))
     assertFalse(body.has("subscription_id")) // identity preserved via path, not new register
   }
 
   private class RecordingTransport : HttpTransport {
-    val requests = mutableListOf<HttpRequest>()
-    var nextResponse: HttpResponse? = null
+    val requests: MutableList<HttpRequest> = java.util.Collections.synchronizedList(mutableListOf())
+    @Volatile var nextResponse: HttpResponse? = null
+
+    /** ACK flushes run on the SDK's background thread; wait for them to land. */
+    fun awaitRequests(count: Int, timeoutMs: Long = 5_000): List<HttpRequest> {
+      val deadline = System.currentTimeMillis() + timeoutMs
+      while (requests.size < count && System.currentTimeMillis() < deadline) Thread.sleep(10)
+      return synchronized(requests) { requests.toList() }
+    }
     private val queue = ArrayDeque<HttpResponse>()
 
     fun enqueue(vararg responses: HttpResponse) {
