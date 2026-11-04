@@ -35,12 +35,12 @@ Grouped by lifecycle. Depth B: signature, purpose, parameters, returns. Examples
 
 #### `configure(context: Context, configuration: ComRaidConfiguration)`
 
-Stores App ID / API base URL, ensures default (and category) notification channels, and prepares the runtime. Call once from `Application.onCreate` before permission, register, schedule, or ACKs.
+Stores App ID / API base URL, creates the default channel, starts a background sync of category channels, and prepares the runtime. Call once from `Application.onCreate` before permission, register, schedule, or ACKs. No network I/O runs on the calling thread.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `context` | `Context` | Any context; the SDK keeps `applicationContext`. |
-| `configuration` | `ComRaidConfiguration` | `appId` (`cr_app_…`), optional `apiBaseUrl`, channel defaults, `smallIconResourceId`. |
+| `configuration` | `ComRaidConfiguration` | `appId` (`cr_app_…`), optional `apiBaseUrl`, channel defaults, `smallIconResourceId`, optional `accentColor`. |
 
 **Returns:** `Unit`. Throws if `appId` is blank.
 
@@ -228,7 +228,7 @@ Enqueue + flush an opened ACK (optional action button id).
 
 #### `flushAcks()`
 
-Flush any durable ACK backlog (safe to call from `Application.onCreate`).
+Flush any durable ACK backlog on the SDK's background thread (safe to call from `Application.onCreate`). Notification taps and actions flush the same way.
 
 **Returns:** `Unit`. No-op if not configured.
 
@@ -308,13 +308,26 @@ API `content.push.deep_link` arrives in FCM data as `cr_deep_link`. On notificat
 - When FCM includes a system `notification` block, Android applies sound / tag / notification count from the provider; the host still reads `cr_deep_link` on open for in-app navigation.
 - When the SDK builds the tray notification (data-first payloads or action buttons), the content intent uses `cr_deep_link` when it is a valid URI and launches it after the opened ACK. Host apps still own intent-filter / routing setup.
 
-Other rich fields (`sound`, `badge`, `thread_id`, `subtitle`) are primarily provider/OS presentation; `subtitle` is iOS-oriented and ignored on Android system trays.
+When the SDK draws the notification (action buttons, or the app is in the foreground) it applies:
+
+| Field | Android behaviour |
+|-------|-------------------|
+| `image_url` | Downloaded (≤ 5 MB, 10 s timeout) and shown as an expanded picture and large icon. |
+| `body` | Expandable long text when there is no image. |
+| `actions[].icon` | Name of a drawable in your app (`res/drawable`); unknown names give a text-only button. |
+| `thread_id` | Notification tag: a newer push in the same thread replaces the older one. |
+| `badge` | Notification count (`setNumber`). |
+| `sound` / category `android_sound` | Name of a sound in your app's `res/raw` (`chime` or `chime.wav`). On Android 8+ the channel's sound plays, so set sounds on the category; Android fixes a channel's sound when the channel is first created. |
+| `priority` | Android 7 and older only; on 8+ the category's importance decides. |
+| `ComRaidConfiguration.accentColor` | Tint for the small icon and action buttons. |
+
+If a push names a category channel this device hasn't created yet, the SDK syncs categories once more and otherwise posts on the default channel, so the notification is never dropped. `subtitle` is iOS-only and ignored on Android.
 
 ## Models
 
 | Type | Role |
 |------|------|
-| `ComRaidConfiguration` | App ID, API base URL, default channel, small icon. |
+| `ComRaidConfiguration` | App ID, API base URL, default channel, small icon, accent colour. |
 | `ComRaidNotification` | Local schedule content (`id`, `title`, `body`, optional `channelId` / `data`). |
 | `ComRaidScheduleRequest` / `ComRaidScheduleResult` | Local schedule input / outcome. |
 | `SchedulePrecision` / `FallbackPolicy` | Exact vs inexact; fail vs fall back. |

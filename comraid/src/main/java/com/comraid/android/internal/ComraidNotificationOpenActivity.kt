@@ -32,7 +32,7 @@ class ComraidNotificationOpenActivity : Activity() {
     val helpers = BackgroundAckHelpers.from(this)
     if (helpers != null) {
       helpers.queue.enqueueFromPayload(AckKind.OPENED, data, actionId)
-      helpers.queue.flush()
+      helpers.queue.flushAsync()
     }
     ComRaid.notifyNotificationOpened(data, actionId)
     if (actionId.isNullOrBlank()) {

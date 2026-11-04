@@ -23,7 +23,7 @@ class ComraidNotificationActionReceiver : BroadcastReceiver() {
     val actionId = intent.getStringExtra(EXTRA_ACTION_ID)
     val helpers = BackgroundAckHelpers.from(context) ?: return
     helpers.queue.enqueueFromPayload(AckKind.OPENED, data, actionId)
-    helpers.queue.flush()
+    helpers.queue.flushAsync()
 
     if (actionId.isNullOrBlank()) {
       launchDeepLinkIfPresent(context, data)

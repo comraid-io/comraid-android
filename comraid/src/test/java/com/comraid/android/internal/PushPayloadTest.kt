@@ -34,6 +34,41 @@ class PushPayloadTest {
   }
 
   @Test
+  fun display_reads_sound_badge_thread_and_priority_hints() {
+    val display = PushPayload.display(
+      mapOf(
+        "cr_title" to "Hello",
+        "cr_sound" to "chime",
+        "cr_badge" to "3",
+        "cr_thread_id" to "order-42",
+        "cr_priority" to "normal",
+      ),
+    )
+    assertEquals("chime", display.sound)
+    assertEquals(3, display.badge)
+    assertEquals("order-42", display.threadId)
+    assertEquals(false, display.highPriority)
+  }
+
+  @Test
+  fun display_defaults_to_high_priority_and_ignores_bad_badge() {
+    val display = PushPayload.display(mapOf("cr_title" to "Hello", "cr_badge" to "lots"))
+    assertNull(display.badge)
+    assertNull(display.sound)
+    assertNull(display.threadId)
+    assertEquals(true, display.highPriority)
+  }
+
+  @Test
+  fun soundResourceName_strips_extension_and_rejects_default() {
+    assertEquals("chime", PushPayload.soundResourceName("chime.wav"))
+    assertEquals("chime", PushPayload.soundResourceName(" chime "))
+    assertNull(PushPayload.soundResourceName("default"))
+    assertNull(PushPayload.soundResourceName(""))
+    assertNull(PushPayload.soundResourceName(null))
+  }
+
+  @Test
   fun actions_parse_cr_actions_json() {
     val actions = PushPayload.actions(
       mapOf("cr_actions" to """[{"id":"accept","text":"Accept","icon":"ic_ok"},{"id":"x"}]"""),

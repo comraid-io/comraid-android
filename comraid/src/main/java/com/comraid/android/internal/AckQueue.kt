@@ -74,7 +74,18 @@ internal class AckQueue(
     save(items)
   }
 
-  fun flush() {
+  /**
+   * [flush] on the SDK's ACK thread. Use from the main thread (activities, receivers,
+   * `Application.onCreate`), where Android rejects network I/O.
+   */
+  fun flushAsync() {
+    flushExecutor.execute { runCatching { flush() } }
+  }
+
+  /** Blocking network flush; call from a background thread. Flushes are serialized per process. */
+  fun flush() = synchronized(flushLock) { flushLocked() }
+
+  private fun flushLocked() {
     val now = clock()
     var items = load().filter { now - it.enqueuedAt <= maxAgeMs }
     val ready = items.filter { it.nextAttemptAt <= now }.take(maxFlush)
@@ -200,5 +211,12 @@ internal class AckQueue(
     const val DEFAULT_MAX_SIZE = 100
     const val DEFAULT_MAX_AGE_MS = 7L * 24 * 60 * 60 * 1000
     const val DEFAULT_MAX_FLUSH = 20
+
+    // Process-wide: every AckQueue instance shares one store, so flushes must not overlap.
+    val flushLock = Any()
+    val flushExecutor: java.util.concurrent.Executor =
+      java.util.concurrent.Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "comraid-ack-flush").apply { isDaemon = true }
+      }
   }
 }

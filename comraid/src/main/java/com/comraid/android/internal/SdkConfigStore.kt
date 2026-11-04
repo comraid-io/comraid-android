@@ -20,6 +20,8 @@ internal class SdkConfigStore(context: Context) {
       putString(KEY_CHANNEL_NAME, configuration.defaultChannelName)
       putInt(KEY_SMALL_ICON, configuration.smallIconResourceId)
       putBoolean(KEY_DISPLAY_FOREGROUND, configuration.displayForegroundNotifications)
+      val color = configuration.accentColor
+      if (color != null) putInt(KEY_ACCENT_COLOR, color) else remove(KEY_ACCENT_COLOR)
     }
   }
 
@@ -36,6 +38,7 @@ internal class SdkConfigStore(context: Context) {
       defaultChannelName = preferences.getString(KEY_CHANNEL_NAME, "General") ?: "General",
       smallIconResourceId = icon,
       displayForegroundNotifications = preferences.getBoolean(KEY_DISPLAY_FOREGROUND, true),
+      accentColor = if (preferences.contains(KEY_ACCENT_COLOR)) preferences.getInt(KEY_ACCENT_COLOR, 0) else null,
     )
   }
 
@@ -47,5 +50,6 @@ internal class SdkConfigStore(context: Context) {
     const val KEY_CHANNEL_NAME = "default_channel_name"
     const val KEY_SMALL_ICON = "small_icon"
     const val KEY_DISPLAY_FOREGROUND = "display_foreground_notifications"
+    const val KEY_ACCENT_COLOR = "accent_color"
   }
 }

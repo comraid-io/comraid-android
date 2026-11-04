@@ -62,12 +62,8 @@ object ComRaid {
     val store = SharedPreferencesSubscriptionStore(appContext)
     val transport = UrlConnectionHttpTransport(configuration.apiBaseUrl)
     val api = MobileApiClient(configuration.appId.trim(), transport)
-    runCatching {
-      val categories = api.listNotificationCategories()
-      if (categories.isNotEmpty()) {
-        NotificationChannels.ensureCategories(appContext, categories)
-      }
-    }
+    // configure runs from Application.onCreate on the main thread; the category fetch is network I/O.
+    NotificationChannels.syncCategoriesAsync(appContext, api)
     val tokenProvider = FcmTokenProvider()
     val ackQueue = AckQueue(
       apiBaseUrl = configuration.apiBaseUrl,
@@ -87,7 +83,7 @@ object ComRaid {
         externalUserId = null,
       )
     }
-    runCatching { ackQueue.flush() }
+    ackQueue.flushAsync()
   }
 
   /**
@@ -202,7 +198,7 @@ object ComRaid {
     val helpers = applicationContext?.let { BackgroundAckHelpers.from(it) }
     if (helpers != null) {
       helpers.queue.enqueueFromPayload(AckKind.OPENED, data, actionId)
-      helpers.queue.flush()
+      helpers.queue.flushAsync()
     }
     if (coldStart) {
       synchronized(lock) {
@@ -461,7 +457,7 @@ object ComRaid {
 
   /** Flush any durable ACK backlog (safe to call from Application.onCreate). */
   fun flushAcks() {
-    runtime?.ackQueue?.flush()
+    runtime?.ackQueue?.flushAsync()
   }
 
   fun schedule(request: ComRaidScheduleRequest): ComRaidScheduleResult {

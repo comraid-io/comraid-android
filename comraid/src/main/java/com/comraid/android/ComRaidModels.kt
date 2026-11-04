@@ -13,6 +13,8 @@ data class ComRaidConfiguration(
    * in the foreground. Set false to handle alerts only via receive listeners / `onMessage`.
    */
   val displayForegroundNotifications: Boolean = true,
+  /** Optional ARGB accent colour for SDK-drawn notifications (small icon and action tint). */
+  val accentColor: Int? = null,
 ) {
   companion object {
     const val DEFAULT_API_BASE_URL = "https://api.comraid.io"

@@ -20,6 +20,11 @@ internal data class PushDisplay(
   val body: String,
   val imageUrl: String? = null,
   val androidChannelId: String? = null,
+  val sound: String? = null,
+  val badge: Int? = null,
+  /** Android notification tag: a newer push with the same thread replaces the older one. */
+  val threadId: String? = null,
+  val highPriority: Boolean = true,
 )
 
 internal object PushPayload {
@@ -36,6 +41,10 @@ internal object PushPayload {
     "cr_deep_link",
     "cr_actions",
     "cr_data_only",
+    "cr_sound",
+    "cr_badge",
+    "cr_thread_id",
+    "cr_priority",
   )
 
   fun attribution(data: Map<String, String>?): DeliveryAttribution? {
@@ -73,7 +82,20 @@ internal object PushPayload {
       body = data["cr_body"].orEmpty(),
       imageUrl = data["cr_image_url"]?.takeIf { it.isNotBlank() },
       androidChannelId = data["cr_android_channel_id"]?.takeIf { it.isNotBlank() },
+      sound = data["cr_sound"]?.trim()?.takeIf { it.isNotEmpty() },
+      badge = data["cr_badge"]?.trim()?.toIntOrNull()?.takeIf { it >= 0 },
+      threadId = data["cr_thread_id"]?.trim()?.takeIf { it.isNotEmpty() },
+      highPriority = data["cr_priority"]?.trim()?.lowercase() != "normal",
     )
+  }
+
+  /**
+   * `res/raw` resource name for a sound (`chime.wav` → `chime`), matching FCM `android.notification.sound`.
+   * Returns null for blank or `default`, which keep the channel / system sound.
+   */
+  fun soundResourceName(raw: String?): String? {
+    val name = raw?.trim()?.substringBeforeLast('.')?.takeIf { it.isNotEmpty() } ?: return null
+    return if (name.equals("default", ignoreCase = true)) null else name
   }
 
   /**

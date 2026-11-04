@@ -43,6 +43,31 @@ class AckQueueTest {
   }
 
   @Test
+  fun flushAsync_sends_off_the_calling_thread() {
+    val sent = java.util.concurrent.CountDownLatch(1)
+    var sendThread: Thread? = null
+    val asyncQueue = AckQueue(
+      apiBaseUrl = "https://api.example.com",
+      store = storage,
+      transport = HttpTransport {
+        sendThread = Thread.currentThread()
+        sent.countDown()
+        HttpResponse(statusCode = 200, body = "{}")
+      },
+      clock = { 1_000_000L },
+    )
+    asyncQueue.enqueueFromPayload(
+      kind = AckKind.OPENED,
+      data = mapOf("cr_delivery_id" to "d1", "cr_attribution_token" to "t1"),
+    )
+
+    asyncQueue.flushAsync()
+
+    assertTrue(sent.await(5, java.util.concurrent.TimeUnit.SECONDS))
+    assertTrue(sendThread !== Thread.currentThread())
+  }
+
+  @Test
   fun flush_posts_delivered_and_clears_queue_on_success() {
     transport.nextResponse = HttpResponse(statusCode = 200, body = """{"delivery_id":"d1","status":"delivered"}""")
     queue.enqueueFromPayload(
