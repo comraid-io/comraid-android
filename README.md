@@ -115,7 +115,7 @@ Reads `cr_*` extras from a system-tray / launcher launch intent, records opened,
 
 #### `presentNotification(event: RemoteMessageEvent)` / `presentNotification(data: Map<String, String>)`
 
-Posts a local tray item from title/body/actions (optional Data-only promotion). Body/action taps auto-ACK opened (with `actionId` for actions). Data-only Notifications are never auto-drawn on receive — call this when the app wants shade UI. The image, sound, badge, thread and category channel travel on the event (`imageUrl`, `sound`, `badge`, `threadId`, `androidChannelId`), so either form draws them.
+Posts a local tray item from title/body/actions (optional Data-only promotion). Body/action taps auto-ACK opened (with `actionId` for actions). Data-only Notifications are never auto-drawn on receive — call this when the app wants shade UI. Presentation fields travel on the event (`imageUrl`, `subtitle`, `sound`, `badge`, `threadId`, `androidChannelId`, `priority`), so either form keeps them. Android trays never draw `subtitle`; on Android 8+ the category channel decides sound and importance (ADR 0012).
 
 **Returns:** `Unit`. Requires prior `configure` (or persisted SdkConfigStore).
 
@@ -328,6 +328,8 @@ If a push names a category channel this device hasn't created yet, the SDK syncs
 | Type | Role |
 |------|------|
 | `ComRaidConfiguration` | App ID, API base URL, default channel, small icon, accent colour. |
+| `RemoteMessageEvent` | Receive / open event: `messageId`, `deliveryId`, `attributionToken`, `title`, `body`, sender-only `data`, `deepLink`, `actions`, `actionId`, plus presentation fields `imageUrl`, `subtitle`, `sound`, `badge`, `threadId`, `androidChannelId`, and always-present `priority` (`"high"` \| `"normal"`). `subtitle` is exposed for parity and never drawn on Android trays. |
+| `RemoteMessageAction` | Action button (`id`, `text`, optional `icon` drawable name). |
 | `ComRaidNotification` | Local schedule content (`id`, `title`, `body`, optional `channelId` / `data`). |
 | `ComRaidScheduleRequest` / `ComRaidScheduleResult` | Local schedule input / outcome. |
 | `SchedulePrecision` / `FallbackPolicy` | Exact vs inexact; fail vs fall back. |

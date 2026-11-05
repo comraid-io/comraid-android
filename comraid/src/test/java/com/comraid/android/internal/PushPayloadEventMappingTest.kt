@@ -37,10 +37,14 @@ class PushPayloadEventMappingTest {
       "cr_actions" to "[]",
       "cr_data_only" to "true",
       "cr_image_url" to "https://x",
+      "cr_subtitle" to "Extra line",
       "cr_android_channel_id" to "general",
+      "cr_priority" to "high",
     )
     val sender = PushPayload.senderData(data)
     assertEquals(mapOf("path" to "/orders/1", "params" to """{"id":1}"""), sender)
+    assertFalse(sender.containsKey("cr_subtitle"))
+    assertFalse(sender.containsKey("cr_priority"))
   }
 
   @Test
