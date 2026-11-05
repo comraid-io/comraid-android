@@ -18,6 +18,11 @@ internal object RemoteMessageMapper {
         RemoteMessageAction(id = it.id, text = it.text, icon = it.icon)
       },
       actionId = actionId?.takeIf { it.isNotBlank() },
+      imageUrl = display.imageUrl,
+      sound = display.sound,
+      badge = display.badge,
+      threadId = display.threadId,
+      androidChannelId = display.androidChannelId,
     )
   }
 }

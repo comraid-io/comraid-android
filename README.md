@@ -115,7 +115,7 @@ Reads `cr_*` extras from a system-tray / launcher launch intent, records opened,
 
 #### `presentNotification(event: RemoteMessageEvent)` / `presentNotification(data: Map<String, String>)`
 
-Posts a local tray item from title/body/actions (optional Data-only promotion). Body/action taps auto-ACK opened (with `actionId` for actions). Data-only Notifications are never auto-drawn on receive — call this when the app wants shade UI.
+Posts a local tray item from title/body/actions (optional Data-only promotion). Body/action taps auto-ACK opened (with `actionId` for actions). Data-only Notifications are never auto-drawn on receive — call this when the app wants shade UI. The image, sound, badge, thread and category channel travel on the event (`imageUrl`, `sound`, `badge`, `threadId`, `androidChannelId`), so either form draws them.
 
 **Returns:** `Unit`. Requires prior `configure` (or persisted SdkConfigStore).
 

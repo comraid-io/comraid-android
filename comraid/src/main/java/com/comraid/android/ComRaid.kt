@@ -243,6 +243,11 @@ object ComRaid {
       put("cr_body", event.body.orEmpty())
       event.deepLink?.let { put("cr_deep_link", it) }
       actionsJson?.let { put("cr_actions", it) }
+      event.imageUrl?.let { put("cr_image_url", it) }
+      event.sound?.let { put("cr_sound", it) }
+      event.badge?.let { put("cr_badge", it.toString()) }
+      event.threadId?.let { put("cr_thread_id", it) }
+      event.androidChannelId?.let { put("cr_android_channel_id", it) }
       putAll(event.data)
     }
     NotificationChannels.ensureDefault(ctx, configuration)
