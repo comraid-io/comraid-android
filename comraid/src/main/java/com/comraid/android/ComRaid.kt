@@ -220,36 +220,9 @@ object ComRaid {
     val configuration = runtime?.configuration
       ?: SdkConfigStore(ctx).load()
       ?: throw ComRaidException.NotConfigured()
-    val title = event.title?.takeIf { it.isNotBlank() }
+    event.title?.takeIf { it.isNotBlank() }
       ?: throw IllegalArgumentException("presentNotification requires a non-blank title")
-    val actionsJson = if (event.actions.isNotEmpty()) {
-      org.json.JSONArray(
-        event.actions.map { action ->
-          org.json.JSONObject().apply {
-            put("id", action.id)
-            put("text", action.text)
-            action.icon?.let { put("icon", it) }
-          }
-        },
-      ).toString()
-    } else {
-      null
-    }
-    val payload = buildMap {
-      event.deliveryId?.let { put("cr_delivery_id", it) }
-      event.attributionToken?.let { put("cr_attribution_token", it) }
-      event.messageId?.let { put("cr_message_id", it) }
-      put("cr_title", title)
-      put("cr_body", event.body.orEmpty())
-      event.deepLink?.let { put("cr_deep_link", it) }
-      actionsJson?.let { put("cr_actions", it) }
-      event.imageUrl?.let { put("cr_image_url", it) }
-      event.sound?.let { put("cr_sound", it) }
-      event.badge?.let { put("cr_badge", it.toString()) }
-      event.threadId?.let { put("cr_thread_id", it) }
-      event.androidChannelId?.let { put("cr_android_channel_id", it) }
-      putAll(event.data)
-    }
+    val payload = RemoteMessageMapper.toPayload(event)
     NotificationChannels.ensureDefault(ctx, configuration)
     RemoteNotificationDisplay.show(ctx, configuration, payload)
   }
