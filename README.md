@@ -185,7 +185,7 @@ Upsert Contact Attributes for the logged-in Contact (`PUT /mobile/subscriptions/
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `attributes` | `Map<String, Any?>` | Attribute map (e.g. `plan` → `premium`). Empty map is a successful empty update. |
+| `attributes` | `Map<String, Any?>` | Attribute map (e.g. `plan` → `premium`). Empty map is a successful empty update. A `null` value removes that Attribute. |
 
 **Returns:** `Unit`. Throws `NotReady` if not logged in.
 

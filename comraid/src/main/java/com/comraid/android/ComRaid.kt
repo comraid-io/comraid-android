@@ -390,6 +390,7 @@ object ComRaid {
   /**
    * Upsert Contact Attributes for the logged-in Contact
    * (`PUT /mobile/subscriptions/{id}/attributes`).
+   * A `null` value removes that Attribute.
    */
   fun setAttributes(attributes: Map<String, Any?>) {
     val current = requireRuntime()

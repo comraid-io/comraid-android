@@ -61,6 +61,25 @@ class ComRaidRemoteAndPropertiesTest {
   }
 
   @Test
+  fun setAttributes_null_value_is_sent_as_json_null() {
+    store.save(subscriptionId = "sub-1", credential = "cred-1")
+    transport.enqueue(
+      HttpResponse(
+        200,
+        """{"subscription_id":"sub-1","contact_id":"c-1","external_user_id":"user_123","anonymous":false,"verified":false}""",
+      ),
+      HttpResponse(200, """{"contact_id":"c-1","external_user_id":"user_123","updated_attributes":["plan"]}"""),
+    )
+
+    ComRaid.login("user_123")
+    ComRaid.setAttributes(mapOf("plan" to null))
+
+    val body = JSONObject(transport.requests[1].body!!)
+    val attrs = body.getJSONObject("attributes")
+    assertTrue(attrs.isNull("plan"))
+  }
+
+  @Test
   fun setAttributes_puts_contact_attributes_after_login() {
     store.save(subscriptionId = "sub-1", credential = "cred-1")
     transport.enqueue(
