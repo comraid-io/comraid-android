@@ -191,7 +191,7 @@ class ComRaidIdentityTest {
       body = """{"subscription_id":"sub-1","channel":"push","anonymous":true,"platform":"android","provider":"fcm"}""",
     )
 
-    ComRaid.register()
+    ComRaid.registerBlocking()
 
     val body = JSONObject(transport.requests.single().body!!)
     assertEquals("cred-1", body.getString("subscription_credential"))

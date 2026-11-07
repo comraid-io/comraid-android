@@ -440,7 +440,8 @@ object ComRaid {
     synchronized(lock) {
       runtime = current.copy(externalUserId = null)
     }
-    register()
+    // Fresh Subscription after Logout; keep sync semantics of logout().
+    registerBlockingInternal()
   }
 
   fun optOut() {
