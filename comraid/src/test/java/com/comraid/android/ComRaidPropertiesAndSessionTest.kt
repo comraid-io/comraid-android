@@ -159,6 +159,27 @@ class ComRaidPropertiesAndSessionTest {
     assertEquals("/mobile/subscriptions/sub-1/session", transport.awaitRequests(1).single().path)
   }
 
+  @Test
+  fun repeated_foreground_without_background_skips_until_session_debounce() {
+    store.save(subscriptionId = "sub-1", credential = "cred-1")
+    transport.nextResponse = HttpResponse(
+      statusCode = 200,
+      body = """{"subscription_id":"sub-1","session_count":3,"last_seen_at":"2026-01-01T00:00:00Z"}""",
+    )
+
+    ComRaid.handleAppForegroundForTests()
+    transport.awaitRequests(1)
+    transport.requests.clear()
+
+    nowMs += 5 * 60 * 1000L
+    ComRaid.handleAppForegroundForTests()
+    assertTrue(transport.requests.isEmpty())
+
+    nowMs += 25 * 60 * 1000L + 1
+    ComRaid.handleAppForegroundForTests()
+    assertEquals("/mobile/subscriptions/sub-1/session", transport.awaitRequests(1).single().path)
+  }
+
   private class RecordingTransport : HttpTransport {
     val requests: MutableList<HttpRequest> = java.util.Collections.synchronizedList(mutableListOf())
     @Volatile var nextResponse: HttpResponse? = null
