@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import androidx.annotation.WorkerThread
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -24,12 +25,16 @@ import com.comraid.android.internal.RemoteMessageMapper
 import com.comraid.android.internal.RemoteNotificationDisplay
 import com.comraid.android.internal.ScheduleStore
 import com.comraid.android.internal.SdkConfigStore
+import com.comraid.android.internal.SdkExecutors
 import com.comraid.android.internal.SharedPreferencesAckQueueStore
 import com.comraid.android.internal.SharedPreferencesSubscriptionStore
 import com.comraid.android.internal.SubscriptionStore
 import com.comraid.android.internal.TokenProvider
 import com.comraid.android.internal.UrlConnectionHttpTransport
 import java.util.concurrent.CopyOnWriteArrayList
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import kotlin.coroutines.suspendCoroutine
 
 fun interface RemoteMessageListener {
   fun onRemoteMessage(event: RemoteMessageEvent)
@@ -302,7 +307,9 @@ object ComRaid {
 
   /**
    * Requests notification permission when needed, then registers a Subscription if granted.
-   * Configure only stores settings; this is when token fetch + register run.
+   * Configure only stores settings; this is when token fetch + register run (on the SDK
+   * executor). [onResult] is invoked on the main thread after register completes when
+   * permission is granted; register failures mean [onResult] is not called.
    * Channels are created in [configure] before this runs (Android 13+ prerequisite).
    */
   fun requestPermission(activity: Activity, onResult: (granted: Boolean) -> Unit) {
@@ -312,8 +319,7 @@ object ComRaid {
       PackageManager.PERMISSION_GRANTED
     ) {
       if (NotificationManagerCompat.from(activity).areNotificationsEnabled()) {
-        register()
-        onResult(true)
+        registerAfterPermissionGrant(onResult)
       } else {
         onResult(false)
       }
@@ -329,6 +335,8 @@ object ComRaid {
 
   /**
    * Forward [Activity.onRequestPermissionsResult] for [requestPermission].
+   * On grant, register runs on the SDK executor; [permissionCallback] is invoked on the
+   * main thread after register completes (or immediately with false when denied).
    */
   fun onRequestPermissionsResult(
     requestCode: Int,
@@ -339,20 +347,54 @@ object ComRaid {
     permissionCallback = null
     val granted = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
     if (granted) {
-      register()
+      registerAfterPermissionGrant(callback)
+    } else {
+      callback(false)
     }
-    callback(granted)
   }
 
   /**
-   * Fetches the FCM token and registers (or refreshes) a Subscription.
+   * Fetches the FCM token and registers (or refreshes) a Subscription on the SDK executor.
+   * Returns immediately; [onComplete] is delivered on the main thread.
    * Call after notification permission is granted, or use [requestPermission].
    */
-  fun register() {
-    val current = requireRuntime()
-    val token = current.tokenProvider.currentToken()
-    val result = current.api.register(token, current.deviceProperties)
-    current.subscriptionStore.save(result.subscriptionId, result.credential)
+  fun register(onComplete: (Result<Unit>) -> Unit) {
+    requireRuntime()
+    SdkExecutors.worker.execute {
+      val result = runCatching { registerBlockingInternal() }
+      SdkExecutors.postMain { onComplete(result) }
+    }
+  }
+
+  /**
+   * Suspends until [register] completes. Safe from any thread; token fetch and network I/O
+   * run on the SDK executor. Resumes on the main thread when started from the main thread
+   * (callback delivery), or on the thread that runs the completion callback.
+   */
+  suspend fun register() {
+    suspendCoroutine { continuation ->
+      register { result ->
+        result.fold(
+          onSuccess = { continuation.resume(Unit) },
+          onFailure = { continuation.resumeWithException(it) },
+        )
+      }
+    }
+  }
+
+  /**
+   * Blocking register for worker threads (for example a host-owned executor).
+   * Prefer [register] with a callback or the suspend overload. Throws if called on the
+   * main thread.
+   */
+  @WorkerThread
+  fun registerBlocking() {
+    if (SdkExecutors.isMainThread()) {
+      throw IllegalStateException(
+        "ComRaid.registerBlocking must not be called on the main thread; use register { } or suspend register()",
+      )
+    }
+    registerBlockingInternal()
   }
 
   /**
@@ -530,6 +572,20 @@ object ComRaid {
 
   private fun validateConfiguration(configuration: ComRaidConfiguration) {
     require(configuration.appId.isNotBlank()) { "appId is required (cr_app_…)" }
+  }
+
+  private fun registerAfterPermissionGrant(onResult: (granted: Boolean) -> Unit) {
+    register { result ->
+      result.onSuccess { onResult(true) }
+      // Match prior sync behaviour: permission callback is skipped when register throws.
+    }
+  }
+
+  private fun registerBlockingInternal() {
+    val current = requireRuntime()
+    val token = current.tokenProvider.currentToken()
+    val result = current.api.register(token, current.deviceProperties)
+    current.subscriptionStore.save(result.subscriptionId, result.credential)
   }
 
   private fun requireRuntime(): Runtime =

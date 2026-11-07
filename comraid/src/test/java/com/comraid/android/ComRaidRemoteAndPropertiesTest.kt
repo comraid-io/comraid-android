@@ -50,7 +50,7 @@ class ComRaidRemoteAndPropertiesTest {
       body = """{"subscription_id":"sub-new","subscription_credential":"cred-new","channel":"push","anonymous":true,"platform":"android","provider":"fcm"}""",
     )
 
-    ComRaid.register()
+    ComRaid.registerBlocking()
 
     val body = JSONObject(transport.awaitRequests(1).single().body!!)
     assertEquals("2.1.0", body.getString("app_version"))
