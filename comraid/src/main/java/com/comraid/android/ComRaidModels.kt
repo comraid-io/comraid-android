@@ -54,13 +54,20 @@ data class ComRaidCapabilities(
 )
 
 /**
- * Subscription (device) Properties sent on register / token refresh
- * (`app_version` + `device` object per mobile OpenAPI).
+ * Subscription / Contact Properties sent on register, token refresh, and session.
+ * The SDK fills these automatically; [ComRaid.setDeviceProperties] overrides
+ * individual fields (non-null wins) for the next outbound call.
  */
 data class DeviceProperties(
   val appVersion: String? = null,
+  val sdkVersion: String? = null,
   val model: String? = null,
+  val os: String? = null,
   val osVersion: String? = null,
+  val locale: String? = null,
+  val timezone: String? = null,
+  val language: String? = null,
+  val country: String? = null,
   val extras: Map<String, Any?> = emptyMap(),
 )
 
