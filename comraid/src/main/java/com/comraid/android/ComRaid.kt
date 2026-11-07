@@ -31,6 +31,7 @@ import com.comraid.android.internal.SharedPreferencesSubscriptionStore
 import com.comraid.android.internal.SubscriptionStore
 import com.comraid.android.internal.TokenProvider
 import com.comraid.android.internal.UrlConnectionHttpTransport
+import com.comraid.android.internal.WorkManagerAckFlushScheduler
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -74,6 +75,7 @@ object ComRaid {
       apiBaseUrl = configuration.apiBaseUrl,
       store = SharedPreferencesAckQueueStore(appContext),
       transport = transport,
+      flushScheduler = WorkManagerAckFlushScheduler(appContext),
     )
     synchronized(lock) {
       runtime = Runtime(
