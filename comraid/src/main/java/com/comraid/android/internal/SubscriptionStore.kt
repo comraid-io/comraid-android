@@ -4,7 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
 import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
+import androidx.security.crypto.MasterKeys
 
 internal interface SubscriptionStore {
   val subscriptionId: String?
@@ -60,13 +60,12 @@ internal class SharedPreferencesSubscriptionStore(context: Context) : Subscripti
     const val FILE_NAME = "comraid.subscription.secure"
 
     fun createSecurePreferences(context: Context): SharedPreferences {
-      val masterKey = MasterKey.Builder(context)
-        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-        .build()
+      // security-crypto 1.0.0 (stable). MasterKey lives only in 1.1.0-alpha*.
+      val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
       return EncryptedSharedPreferences.create(
-        context,
         FILE_NAME,
-        masterKey,
+        masterKeyAlias,
+        context,
         EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
         EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
       )

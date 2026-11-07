@@ -348,6 +348,18 @@ If a push names a category channel this device hasn't created yet, the SDK syncs
 | `ExactAlarmUnavailable` | Exact precision requested with `FallbackPolicy.FAIL` and no exact-alarm access. |
 | `ApiError` | Mobile HTTP / FCM token failure. |
 
+## Publishing
+
+Maven coordinate: `com.comraid:comraid` (MIT). Central Portal + signing are configured via the [vanniktech maven-publish plugin](https://vanniktech.github.io/gradle-maven-publish-plugin/central/); credentials and the GPG key come from env / `~/.gradle/gradle.properties` (`mavenCentralUsername`, `mavenCentralPassword`, `signingInMemoryKey`), never from the repo.
+
+Local dry-run (classpath check, `publishToMavenLocal`, signed bundle validation):
+
+```bash
+./scripts/maven-central-dry-run.sh
+```
+
+Release upload (after Central namespace + secrets exist): `./gradlew :comraid:publishToMavenCentral`. Pressing publish for V1 is owned outside this repo; GitHub Actions enablement is tracked as v1-tracker #35. A draft workflow lives at `.github/workflows/release-publish.yml`.
+
 ## Notes
 
 - Wire field is `external_user_id` (never `external_id`).
