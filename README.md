@@ -4,7 +4,10 @@ Native Android SDK for push Subscriptions, remote notification display, delivery
 
 Canonical docs (install, getting started, method reference): [docs.comraid.io/sdks/android](https://docs.comraid.io/sdks/android).
 
-**Not wrapped:** `mobileSubscriptionSession` exists in the mobile OpenAPI but has **no SDK method** — call it over HTTP directly until a wrapper lands.
+The SDK collects Subscription / Contact **Properties** automatically on `register` and on
+each eligible app foreground, and calls `POST /mobile/subscriptions/{id}/session`
+(debounced ~30 minutes since last background). There is **no** public `session` method —
+hosts do not call it. Use `setDeviceProperties` only to override auto-collected fields.
 
 ## Setup
 
@@ -169,13 +172,29 @@ ComRaid.optIn()
 
 ### Properties and Attributes
 
+#### Automatic Properties and sessions
+
+On `register` and on each eligible foreground the SDK sends:
+
+| Field | Source |
+|-------|--------|
+| `app_version` | Host app `versionName` |
+| `sdk_version` | ComRaid Android library version |
+| `device.os` / `device.os_version` / `device.model` | Android OS + `Build.MODEL` |
+| `locale` / `language` / `country` | Device locale / region |
+| `timezone` | IANA id from the device timezone |
+
+Foreground session POSTs are debounced (~30 minutes since last background) so brief
+backgrounding does not inflate `session_count`.
+
 #### `setDeviceProperties(properties: DeviceProperties)`
 
-Persist Subscription device Properties for the next register / token refresh (`app_version` + `device` object).
+Optional overrides for automatically collected Properties on the next register / token /
+session call. Null fields keep the auto-collected value.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `properties` | `DeviceProperties` | Optional `appVersion`, `model`, `osVersion`, `extras`. |
+| `properties` | `DeviceProperties` | Optional overrides (`appVersion`, `sdkVersion`, `model`, `os`, `osVersion`, `locale`, `timezone`, `language`, `country`, `extras`). |
 
 **Returns:** `Unit`.
 
@@ -191,9 +210,9 @@ Upsert Contact Attributes for the logged-in Contact (`PUT /mobile/subscriptions/
 
 ```kotlin
 ComRaid.setDeviceProperties(
-  DeviceProperties(appVersion = "1.2.0", model = "Pixel 8", osVersion = "14"),
+  DeviceProperties(appVersion = "1.2.0", model = "Pixel 8"),
 )
-// included on the next register / token refresh
+// overrides hitchhike on the next register / token / session
 
 ComRaid.login("user_123")
 ComRaid.setAttributes(mapOf("plan" to "premium"))
@@ -334,7 +353,7 @@ If a push names a category channel this device hasn't created yet, the SDK syncs
 | `ComRaidScheduleRequest` / `ComRaidScheduleResult` | Local schedule input / outcome. |
 | `SchedulePrecision` / `FallbackPolicy` | Exact vs inexact; fail vs fall back. |
 | `ComRaidCapabilities` | `notificationsEnabled`, `exactAlarmsAvailable`. |
-| `DeviceProperties` | Subscription Properties for register / token refresh. |
+| `DeviceProperties` | Overrides for auto-collected Properties on register / token / session. |
 
 ## Errors
 
