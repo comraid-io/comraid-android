@@ -194,15 +194,39 @@ object ComRaid {
     val data = ComraidNotificationOpenActivity.dataFromIntent(intent) ?: return null
     val actionId = intent.getStringExtra(ComraidNotificationOpenActivity.EXTRA_ACTION_ID)
       ?: intent.getStringExtra(com.comraid.android.internal.ComraidNotificationActionReceiver.EXTRA_ACTION_ID)
-    val event = RemoteMessageMapper.toEvent(data, actionId)
-    val helpers = applicationContext?.let { BackgroundAckHelpers.from(it) }
-    if (helpers != null) {
-      helpers.queue.enqueueFromPayload(AckKind.OPENED, data, actionId)
-      helpers.queue.flushAsync()
+    return handleNotificationOpen(data, actionId, coldStart)
+  }
+
+  /**
+   * Process a notification open (body tap or action button). Enqueues opened ACK and
+   * notifies opened listeners / cold-start [getInitialNotification].
+   *
+   * @param ackContext optional Context for the SharedPreferences ACK queue when the
+   *   runtime is not configured yet (notification trampoline before [configure]).
+   */
+  internal fun handleNotificationOpen(
+    data: Map<String, String>,
+    actionId: String? = null,
+    coldStart: Boolean = false,
+    ackContext: Context? = null,
+  ): RemoteMessageEvent {
+    val trimmedAction = actionId?.takeIf { it.isNotBlank() }
+    val event = RemoteMessageMapper.toEvent(data, trimmedAction)
+    val queue = runtime?.ackQueue
+      ?: (ackContext ?: applicationContext)?.let { BackgroundAckHelpers.from(it)?.queue }
+    if (queue != null) {
+      queue.enqueueFromPayload(AckKind.OPENED, data, trimmedAction)
+      queue.flushAsync()
     }
     if (coldStart) {
       synchronized(lock) {
         if (!initialNotificationConsumed && initialNotification == null) {
+          initialNotification = event
+        }
+      }
+    } else {
+      synchronized(lock) {
+        if (!initialNotificationConsumed && initialNotification == null && openedListeners.isEmpty()) {
           initialNotification = event
         }
       }
@@ -249,6 +273,7 @@ object ComRaid {
   }
 
   internal fun notifyNotificationOpened(data: Map<String, String>, actionId: String?) {
+    // Activity trampoline already enqueued the opened ACK; only surface listeners / cold stash.
     val event = RemoteMessageMapper.toEvent(data, actionId)
     synchronized(lock) {
       if (!initialNotificationConsumed && initialNotification == null && openedListeners.isEmpty()) {

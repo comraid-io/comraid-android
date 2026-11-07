@@ -29,18 +29,9 @@ class ComraidNotificationOpenActivity : Activity() {
     if (intent == null) return
     val data = dataFromIntent(intent) ?: return
     val actionId = intent.getStringExtra(EXTRA_ACTION_ID)?.takeIf { it.isNotBlank() }
-    val helpers = BackgroundAckHelpers.from(this)
-    if (helpers != null) {
-      helpers.queue.enqueueFromPayload(AckKind.OPENED, data, actionId)
-      helpers.queue.flushAsync()
-    }
-    ComRaid.notifyNotificationOpened(data, actionId)
-    if (actionId.isNullOrBlank()) {
-      launchApp(this, data)
-    } else {
-      // Action taps still bring the app forward (launcher) so JS can route.
-      launchApp(this, data)
-    }
+    // Prefer the configured runtime queue; ackContext covers opens before configure().
+    ComRaid.handleNotificationOpen(data, actionId, coldStart = false, ackContext = this)
+    launchApp(this, data)
   }
 
   companion object {
