@@ -58,12 +58,12 @@ Local capability probe (no network): whether notifications are enabled and wheth
 
 #### `requestPermission(activity: Activity, onResult: (granted: Boolean) -> Unit)`
 
-Requests `POST_NOTIFICATIONS` when needed (Android 13+), then registers a Subscription if granted. Configure only stores settings; token fetch + register run on the SDK executor. `onResult` is delivered on the main thread after register completes when permission is granted (skipped if register fails).
+Requests `POST_NOTIFICATIONS` when needed (Android 13+), then registers a Subscription if granted. Configure only stores settings; token fetch + register run on the SDK executor. `onResult` is always delivered on the main thread after register completes when permission is granted (`true` on success, `false` if register fails) so hosts never hang.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `activity` | `Activity` | Host activity for the system permission dialog. |
-| `onResult` | `(Boolean) -> Unit` | Invoked on the main thread with whether permission (and notifications) are granted. |
+| `onResult` | `(Boolean) -> Unit` | Invoked on the main thread with whether permission was granted and register succeeded. |
 
 **Returns:** `Unit`. Requires prior `configure`.
 
