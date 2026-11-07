@@ -13,10 +13,10 @@ import com.comraid.android.ComRaidScheduleResult
 import com.comraid.android.FallbackPolicy
 import com.comraid.android.SchedulePrecision
 
-internal class ComraidScheduler(private val context: Context) {
+internal class ComraidScheduler(private val context: Context) : NotificationScheduler {
   private val alarmManager = context.getSystemService(AlarmManager::class.java)
 
-  fun schedule(request: ComRaidScheduleRequest, configuration: ComRaidConfiguration): ComRaidScheduleResult {
+  override fun schedule(request: ComRaidScheduleRequest, configuration: ComRaidConfiguration): ComRaidScheduleResult {
     val canExact = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()
     val appliedPrecision: SchedulePrecision
     val fallbackReason: String?
@@ -44,7 +44,7 @@ internal class ComraidScheduler(private val context: Context) {
     )
   }
 
-  fun cancel(id: String) {
+  override fun cancel(id: String) {
     val intent = PendingIntent.getBroadcast(
       context,
       requestCode(id),

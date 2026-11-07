@@ -40,6 +40,10 @@ class ReadmeMethodReferenceParityTest {
       "flushAcks",
       "schedule",
       "startTimer",
+      "pauseTimer",
+      "resumeTimer",
+      "cancelTimer",
+      "timers",
       "cancel",
       "pendingSchedules",
     )

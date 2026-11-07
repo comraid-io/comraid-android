@@ -21,6 +21,7 @@ import com.comraid.android.internal.FcmTokenProvider
 import com.comraid.android.internal.HttpTransport
 import com.comraid.android.internal.MobileApiClient
 import com.comraid.android.internal.NotificationChannels
+import com.comraid.android.internal.NotificationScheduler
 import com.comraid.android.internal.RemoteMessageMapper
 import com.comraid.android.internal.RemoteNotificationDisplay
 import com.comraid.android.internal.ScheduleStore
@@ -29,6 +30,7 @@ import com.comraid.android.internal.SdkExecutors
 import com.comraid.android.internal.SharedPreferencesAckQueueStore
 import com.comraid.android.internal.SharedPreferencesSubscriptionStore
 import com.comraid.android.internal.SubscriptionStore
+import com.comraid.android.internal.TimerStore
 import com.comraid.android.internal.TokenProvider
 import com.comraid.android.internal.UrlConnectionHttpTransport
 import com.comraid.android.internal.WorkManagerAckFlushScheduler
@@ -54,6 +56,7 @@ object ComRaid {
   @Volatile private var initialNotification: RemoteMessageEvent? = null
   @Volatile private var initialNotificationConsumed = false
   @Volatile private var backgroundHandlerRegistered = false
+  @Volatile private var clock: () -> Long = { System.currentTimeMillis() }
   private val foregroundMessageListeners = CopyOnWriteArrayList<RemoteMessageListener>()
   private val backgroundMessageListeners = CopyOnWriteArrayList<RemoteMessageListener>()
   private val openedListeners = CopyOnWriteArrayList<RemoteMessageListener>()
@@ -78,9 +81,11 @@ object ComRaid {
       flushScheduler = WorkManagerAckFlushScheduler(appContext),
     )
     synchronized(lock) {
+      clock = { System.currentTimeMillis() }
       runtime = Runtime(
         configuration = configuration,
         scheduleStore = ScheduleStore(appContext),
+        timerStore = TimerStore(appContext),
         scheduler = ComraidScheduler(appContext),
         subscriptionStore = store,
         api = api,
@@ -95,7 +100,7 @@ object ComRaid {
 
   /**
    * Test seam: configure with injectable HTTP transport, token provider, subscription store,
-   * and ACK queue store.
+   * and ACK queue store. Optional schedule/timer stores and scheduler enable Local notification tests.
    */
   internal fun configureForTests(
     configuration: ComRaidConfiguration,
@@ -103,6 +108,10 @@ object ComRaid {
     tokenProvider: TokenProvider,
     subscriptionStore: SubscriptionStore,
     ackQueueStore: AckQueueStore = InMemoryAckQueueStoreForTests(),
+    scheduleStore: ScheduleStore? = null,
+    timerStore: TimerStore? = null,
+    scheduler: NotificationScheduler? = null,
+    clock: () -> Long = { System.currentTimeMillis() },
   ) {
     validateConfiguration(configuration)
     val api = MobileApiClient(configuration.appId.trim(), transport)
@@ -112,10 +121,12 @@ object ComRaid {
       transport = transport,
     )
     synchronized(lock) {
+      this.clock = clock
       runtime = Runtime(
         configuration = configuration,
-        scheduleStore = null,
-        scheduler = null,
+        scheduleStore = scheduleStore,
+        timerStore = timerStore,
+        scheduler = scheduler,
         subscriptionStore = subscriptionStore,
         api = api,
         tokenProvider = tokenProvider,
@@ -134,11 +145,17 @@ object ComRaid {
       initialNotification = null
       initialNotificationConsumed = false
       backgroundHandlerRegistered = false
+      clock = { System.currentTimeMillis() }
       foregroundMessageListeners.clear()
       backgroundMessageListeners.clear()
       openedListeners.clear()
       tokenRefreshListeners.clear()
     }
+  }
+
+  /** Test seam: boot / time-change restore without a Context. */
+  internal fun restoreForTests() {
+    restoreInternal()
   }
 
   /**
@@ -524,7 +541,7 @@ object ComRaid {
     val scheduler = current.scheduler ?: throw ComRaidException.NotConfigured()
     val store = current.scheduleStore ?: throw ComRaidException.NotConfigured()
     require(request.notification.id.isNotBlank()) { "Notification id must not be blank" }
-    if (request.triggerAtMillis <= System.currentTimeMillis()) {
+    if (request.triggerAtMillis <= clock()) {
       throw ComRaidException.InvalidSchedule("triggerAtMillis must be in the future")
     }
     val result = scheduler.schedule(request, current.configuration)
@@ -539,14 +556,98 @@ object ComRaid {
     fallbackPolicy: FallbackPolicy = FallbackPolicy.FAIL,
   ): ComRaidScheduleResult {
     if (durationMillis <= 0) throw ComRaidException.InvalidSchedule("durationMillis must be positive")
-    return schedule(
+    val current = requireRuntime()
+    val timerStore = current.timerStore ?: throw ComRaidException.NotConfigured()
+    val triggerAtMillis = clock() + durationMillis
+    val result = schedule(
       ComRaidScheduleRequest(
         notification = notification,
-        triggerAtMillis = System.currentTimeMillis() + durationMillis,
+        triggerAtMillis = triggerAtMillis,
         precision = precision,
         fallbackPolicy = fallbackPolicy,
       ),
     )
+    timerStore.put(
+      ComRaidTimer(
+        id = notification.id,
+        notification = notification,
+        state = TimerState.RUNNING,
+        targetAtMillis = result.triggerAtMillis,
+        remainingDurationMillis = durationMillis,
+        precision = precision,
+        fallbackPolicy = fallbackPolicy,
+      ),
+    )
+    return result
+  }
+
+  fun pauseTimer(id: String): ComRaidTimer {
+    val current = requireRuntime()
+    val scheduler = current.scheduler ?: throw ComRaidException.NotConfigured()
+    val scheduleStore = current.scheduleStore ?: throw ComRaidException.NotConfigured()
+    val timerStore = current.timerStore ?: throw ComRaidException.NotConfigured()
+    val existing = timerStore.all().firstOrNull { it.id == id }
+      ?: throw ComRaidException.TimerNotFound()
+    if (existing.state != TimerState.RUNNING || existing.targetAtMillis == null) {
+      throw ComRaidException.TimerNotPaused()
+    }
+    val remaining = maxOf(0L, existing.targetAtMillis - clock())
+    val paused = existing.copy(
+      state = TimerState.PAUSED,
+      targetAtMillis = null,
+      remainingDurationMillis = remaining,
+    )
+    scheduler.cancel(id)
+    scheduleStore.remove(id)
+    timerStore.put(paused)
+    return paused
+  }
+
+  fun resumeTimer(id: String): ComRaidTimer {
+    val current = requireRuntime()
+    val timerStore = current.timerStore ?: throw ComRaidException.NotConfigured()
+    val existing = timerStore.all().firstOrNull { it.id == id }
+      ?: throw ComRaidException.TimerNotFound()
+    if (existing.state != TimerState.PAUSED) throw ComRaidException.TimerNotPaused()
+    val remaining = maxOf(existing.remainingDurationMillis, 100L)
+    val triggerAtMillis = clock() + remaining
+    val result = schedule(
+      ComRaidScheduleRequest(
+        notification = existing.notification,
+        triggerAtMillis = triggerAtMillis,
+        precision = existing.precision,
+        fallbackPolicy = existing.fallbackPolicy,
+      ),
+    )
+    val resumed = existing.copy(
+      state = TimerState.RUNNING,
+      targetAtMillis = result.triggerAtMillis,
+      remainingDurationMillis = remaining,
+    )
+    timerStore.put(resumed)
+    return resumed
+  }
+
+  fun cancelTimer(id: String) {
+    val current = requireRuntime()
+    val scheduler = current.scheduler ?: throw ComRaidException.NotConfigured()
+    val scheduleStore = current.scheduleStore ?: throw ComRaidException.NotConfigured()
+    val timerStore = current.timerStore ?: throw ComRaidException.NotConfigured()
+    scheduler.cancel(id)
+    scheduleStore.remove(id)
+    val existing = timerStore.all().firstOrNull { it.id == id } ?: return
+    timerStore.put(
+      existing.copy(
+        state = TimerState.CANCELLED,
+        targetAtMillis = null,
+      ),
+    )
+  }
+
+  fun timers(): List<ComRaidTimer> {
+    val current = requireRuntime()
+    val timerStore = current.timerStore ?: throw ComRaidException.NotConfigured()
+    return timerStore.all()
   }
 
   fun cancel(id: String) {
@@ -555,6 +656,14 @@ object ComRaid {
     val store = current.scheduleStore ?: throw ComRaidException.NotConfigured()
     scheduler.cancel(id)
     store.remove(id)
+    current.timerStore?.all()?.firstOrNull { it.id == id }?.let { existing ->
+      current.timerStore.put(
+        existing.copy(
+          state = TimerState.CANCELLED,
+          targetAtMillis = null,
+        ),
+      )
+    }
   }
 
   fun pendingSchedules(): List<ComRaidScheduleRequest> {
@@ -564,21 +673,49 @@ object ComRaid {
   }
 
   internal fun restore(context: Context) {
+    restoreInternal()
+  }
+
+  private fun restoreInternal() {
     val current = runtime ?: return
     val store = current.scheduleStore ?: return
     val scheduler = current.scheduler ?: return
-    val now = System.currentTimeMillis()
+    val now = clock()
     store.all().forEach { request ->
       if (request.triggerAtMillis > now) {
         runCatching { scheduler.schedule(request, current.configuration) }
       } else {
         store.remove(request.notification.id)
+        current.timerStore?.markCompleted(request.notification.id)
+      }
+    }
+    // Re-arm running timers if the schedule row was lost but the timer survived reboot.
+    current.timerStore?.all()?.forEach { timer ->
+      if (timer.state != TimerState.RUNNING) return@forEach
+      val target = timer.targetAtMillis ?: return@forEach
+      if (target <= now) {
+        current.timerStore.markCompleted(timer.id)
+        store.remove(timer.id)
+        return@forEach
+      }
+      if (store.all().none { it.notification.id == timer.id }) {
+        val request = ComRaidScheduleRequest(
+          notification = timer.notification,
+          triggerAtMillis = target,
+          precision = timer.precision,
+          fallbackPolicy = timer.fallbackPolicy,
+        )
+        runCatching {
+          val result = scheduler.schedule(request, current.configuration)
+          store.put(request.copy(precision = result.appliedPrecision))
+        }
       }
     }
   }
 
   internal fun markDelivered(id: String) {
     runtime?.scheduleStore?.remove(id)
+    runtime?.timerStore?.markCompleted(id)
   }
 
   private fun validateConfiguration(configuration: ComRaidConfiguration) {
@@ -618,7 +755,8 @@ object ComRaid {
   private data class Runtime(
     val configuration: ComRaidConfiguration,
     val scheduleStore: ScheduleStore?,
-    val scheduler: ComraidScheduler?,
+    val timerStore: TimerStore?,
+    val scheduler: NotificationScheduler?,
     val subscriptionStore: SubscriptionStore,
     val api: MobileApiClient,
     val tokenProvider: TokenProvider,
