@@ -82,7 +82,7 @@ object ComRaid {
         tokenProvider = tokenProvider,
         ackQueue = ackQueue,
         deviceProperties = null,
-        externalUserId = null,
+        externalUserId = store.externalUserId,
       )
     }
     ackQueue.flushAsync()
@@ -116,7 +116,7 @@ object ComRaid {
         tokenProvider = tokenProvider,
         ackQueue = ackQueue,
         deviceProperties = null,
-        externalUserId = null,
+        externalUserId = subscriptionStore.externalUserId,
       )
     }
   }
@@ -353,7 +353,11 @@ object ComRaid {
   fun register() {
     val current = requireRuntime()
     val token = current.tokenProvider.currentToken()
-    val result = current.api.register(token, current.deviceProperties)
+    val result = current.api.register(
+      token = token,
+      properties = current.deviceProperties,
+      subscriptionCredential = current.subscriptionStore.credential,
+    )
     current.subscriptionStore.save(result.subscriptionId, result.credential)
   }
 
@@ -368,7 +372,11 @@ object ComRaid {
     if (subscriptionId != null && credential != null) {
       current.api.replaceToken(subscriptionId, credential, token, current.deviceProperties)
     } else {
-      val result = current.api.register(token, current.deviceProperties)
+      val result = current.api.register(
+        token = token,
+        properties = current.deviceProperties,
+        subscriptionCredential = null,
+      )
       current.subscriptionStore.save(result.subscriptionId, result.credential)
     }
     notifyTokenRefresh(token)
@@ -380,6 +388,7 @@ object ComRaid {
     require(externalUserId.isNotBlank()) { "external_user_id must not be blank" }
     val trimmed = externalUserId.trim()
     current.api.login(subscriptionId, credential, trimmed, jwt)
+    current.subscriptionStore.setExternalUserId(trimmed)
     synchronized(lock) {
       runtime = current.copy(externalUserId = trimmed)
     }
@@ -389,9 +398,11 @@ object ComRaid {
     val current = requireRuntime()
     val (subscriptionId, credential) = requireSubscription(current)
     current.api.logout(subscriptionId, credential)
+    current.subscriptionStore.clear()
     synchronized(lock) {
       runtime = current.copy(externalUserId = null)
     }
+    register()
   }
 
   fun optOut() {
@@ -417,6 +428,7 @@ object ComRaid {
   /**
    * Upsert Contact Attributes for the logged-in Contact
    * (`PUT /mobile/subscriptions/{id}/attributes`).
+   * A `null` value removes that Attribute.
    */
   fun setAttributes(attributes: Map<String, Any?>) {
     val current = requireRuntime()
