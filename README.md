@@ -80,7 +80,7 @@ Forward `Activity.onRequestPermissionsResult` for `requestPermission`. Registers
 
 #### `register()`
 
-Fetches the FCM token and registers (or refreshes) a Subscription. Call after notification permission is granted, or use `requestPermission`.
+Fetches the FCM token and registers (or refreshes) a Subscription. Call after notification permission is granted, or use `requestPermission`. When a Subscription credential is already persisted (encrypted SharedPreferences), it is sent as `subscription_credential` so a repeat register keeps the same Subscription and Contact.
 
 **Returns:** `Unit`. Throws `ComRaidException.NotConfigured` / `ApiError`.
 
@@ -129,7 +129,7 @@ Records that a JS background message handler is registered (React Native). Does 
 
 #### `login(externalUserId: String, jwt: String? = null)`
 
-Binds the current Subscription to a known Contact (`external_user_id`). Optional Identity verification JWT from your backend.
+Binds the current Subscription to a known Contact (`external_user_id`). Optional Identity verification JWT from your backend. Persists the External user ID with the Subscription id and credential so `setAttributes` works after an app restart.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
@@ -140,7 +140,7 @@ Binds the current Subscription to a known Contact (`external_user_id`). Optional
 
 #### `logout()`
 
-Clears the Contact binding on the Subscription. Stored credential remains so Contact-level opt-in/out still works while Inactive.
+Makes the Subscription **Inactive** and clears its server credential. Clears the persisted Subscription id, credential, and External user ID, then immediately registers a fresh Subscription on a new Anonymous contact. Mobile routes refuse the old row with `401 unauthorized` or `409 subscription_inactive`.
 
 **Returns:** `Unit`.
 
@@ -351,5 +351,5 @@ If a push names a category channel this device hasn't created yet, the SDK syncs
 ## Notes
 
 - Wire field is `external_user_id` (never `external_id`).
-- Logout keeps the stored credential so Contact-level opt-in/out still works while Inactive.
+- Subscription id, credential, and External user ID persist in encrypted SharedPreferences; after Logout the SDK clears that store and registers a fresh Subscription.
 - Package namespace is `com.comraid.android`; never `com.comraide`.

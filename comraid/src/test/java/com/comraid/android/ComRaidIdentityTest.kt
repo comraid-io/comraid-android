@@ -71,21 +71,28 @@ class ComRaidIdentityTest {
   }
 
   @Test
-  fun logout_posts_to_logout_and_keeps_credential() {
+  fun logout_clears_identity_and_registers_fresh_subscription() {
     store.save(subscriptionId = "sub-1", credential = "cred-1")
-    transport.nextResponse = HttpResponse(
-      statusCode = 200,
-      body = """{"subscription_id":"sub-1","active":false,"verified":false}""",
+    store.setExternalUserId("user_123")
+    transport.enqueue(
+      HttpResponse(200, """{"subscription_id":"sub-1","active":false,"verified":false}"""),
+      HttpResponse(
+        201,
+        """{"subscription_id":"sub-new","subscription_credential":"cred-new","channel":"push","anonymous":true,"platform":"android","provider":"fcm"}""",
+      ),
     )
 
     ComRaid.logout()
 
-    val request = transport.requests.single()
-    assertEquals("/mobile/subscriptions/sub-1/logout", request.path)
-    val body = JSONObject(request.body!!)
-    assertEquals("cred-1", body.getString("subscription_credential"))
-    assertEquals("sub-1", store.subscriptionId)
-    assertEquals("cred-1", store.credential)
+    assertEquals(2, transport.requests.size)
+    assertEquals("/mobile/subscriptions/sub-1/logout", transport.requests[0].path)
+    assertEquals("cred-1", JSONObject(transport.requests[0].body!!).getString("subscription_credential"))
+    assertEquals("/mobile/subscriptions", transport.requests[1].path)
+    val registerBody = JSONObject(transport.requests[1].body!!)
+    assertFalse(registerBody.has("subscription_credential"))
+    assertEquals("sub-new", store.subscriptionId)
+    assertEquals("cred-new", store.credential)
+    assertEquals(null, store.externalUserId)
   }
 
   @Test
@@ -122,19 +129,23 @@ class ComRaidIdentityTest {
   }
 
   @Test
-  fun optOut_after_logout_still_uses_stored_credential() {
+  fun optOut_after_logout_uses_fresh_subscription_credential() {
     store.save(subscriptionId = "sub-1", credential = "cred-1")
     transport.enqueue(
       HttpResponse(200, """{"subscription_id":"sub-1","active":false,"verified":false}"""),
-      HttpResponse(200, """{"subscription_id":"sub-1","contact_id":"c-1","channel":"push","opted_out":true}"""),
+      HttpResponse(
+        201,
+        """{"subscription_id":"sub-new","subscription_credential":"cred-new","channel":"push","anonymous":true,"platform":"android","provider":"fcm"}""",
+      ),
+      HttpResponse(200, """{"subscription_id":"sub-new","contact_id":"c-anon","channel":"push","opted_out":true}"""),
     )
 
     ComRaid.logout()
     ComRaid.optOut()
 
-    assertEquals(2, transport.requests.size)
-    assertEquals("/mobile/subscriptions/sub-1/opt-out", transport.requests[1].path)
-    assertEquals("cred-1", JSONObject(transport.requests[1].body!!).getString("subscription_credential"))
+    assertEquals(3, transport.requests.size)
+    assertEquals("/mobile/subscriptions/sub-new/opt-out", transport.requests[2].path)
+    assertEquals("cred-new", JSONObject(transport.requests[2].body!!).getString("subscription_credential"))
   }
 
   @Test
@@ -167,8 +178,63 @@ class ComRaidIdentityTest {
     val body = JSONObject(request.body!!)
     assertEquals("android", body.getString("platform"))
     assertEquals("fcm-token-1", body.getString("token"))
+    assertFalse(body.has("subscription_credential"))
     assertEquals("sub-new", store.subscriptionId)
     assertEquals("cred-new", store.credential)
+  }
+
+  @Test
+  fun register_sends_stored_credential_on_repeat() {
+    store.save(subscriptionId = "sub-1", credential = "cred-1")
+    transport.nextResponse = HttpResponse(
+      statusCode = 200,
+      body = """{"subscription_id":"sub-1","channel":"push","anonymous":true,"platform":"android","provider":"fcm"}""",
+    )
+
+    ComRaid.register()
+
+    val body = JSONObject(transport.requests.single().body!!)
+    assertEquals("cred-1", body.getString("subscription_credential"))
+    assertEquals("fcm-token-1", body.getString("token"))
+    assertEquals("sub-1", store.subscriptionId)
+    assertEquals("cred-1", store.credential)
+  }
+
+  @Test
+  fun login_persists_external_user_id() {
+    store.save(subscriptionId = "sub-1", credential = "cred-1")
+    transport.nextResponse = HttpResponse(
+      statusCode = 200,
+      body = """{"subscription_id":"sub-1","contact_id":"c-1","external_user_id":"user_123","anonymous":false,"verified":false}""",
+    )
+
+    ComRaid.login("user_123")
+
+    assertEquals("user_123", store.externalUserId)
+  }
+
+  @Test
+  fun setAttributes_works_after_reconfigure_with_persisted_identity() {
+    store.save(subscriptionId = "sub-1", credential = "cred-1")
+    store.setExternalUserId("user_123")
+    ComRaid.resetForTests()
+    ComRaid.configureForTests(
+      configuration = ComRaidConfiguration(
+        appId = "cr_app_test",
+        smallIconResourceId = 1,
+      ),
+      transport = transport,
+      tokenProvider = tokens,
+      subscriptionStore = store,
+    )
+    transport.nextResponse = HttpResponse(
+      statusCode = 200,
+      body = """{"contact_id":"c-1","external_user_id":"user_123","updated_attributes":["plan"]}""",
+    )
+
+    ComRaid.setAttributes(mapOf("plan" to "premium"))
+
+    assertEquals("/mobile/subscriptions/sub-1/attributes", transport.requests.single().path)
   }
 
   @Test
@@ -224,8 +290,12 @@ class ComRaidIdentityTest {
     transport.enqueue(
       HttpResponse(200, """{"subscription_id":"sub-1","contact_id":"c-1","external_user_id":"u","anonymous":false,"verified":false}"""),
       HttpResponse(200, """{"subscription_id":"sub-1","active":false,"verified":false}"""),
-      HttpResponse(200, """{"subscription_id":"sub-1","contact_id":"c-1","channel":"push","opted_out":true}"""),
-      HttpResponse(200, """{"subscription_id":"sub-1","contact_id":"c-1","channel":"push","opted_out":false}"""),
+      HttpResponse(
+        201,
+        """{"subscription_id":"sub-new","subscription_credential":"cred-new","channel":"push","anonymous":true,"platform":"android","provider":"fcm"}""",
+      ),
+      HttpResponse(200, """{"subscription_id":"sub-new","contact_id":"c-anon","channel":"push","opted_out":true}"""),
+      HttpResponse(200, """{"subscription_id":"sub-new","contact_id":"c-anon","channel":"push","opted_out":false}"""),
     )
 
     ComRaid.login("u")
