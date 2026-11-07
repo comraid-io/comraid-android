@@ -17,8 +17,10 @@ class NamingContractTest {
     val text = buildScript.readText()
     assertTrue("project group must be com.comraid", text.contains("group = \"com.comraid\""))
     assertTrue("namespace must be com.comraid.android", text.contains("namespace = \"com.comraid.android\""))
-    assertTrue("canonical groupId com.comraid must remain", text.contains("groupId = \"com.comraid\""))
-    assertTrue("artifactId comraid must remain", text.contains("artifactId = \"comraid\""))
+    assertTrue(
+      "Maven coordinates must stay com.comraid:comraid",
+      text.contains("coordinates(\"com.comraid\", \"comraid\""),
+    )
     assertTrue("publishable version must be non-SNAPSHOT", text.contains("version = \"0.1.0\"") && !text.contains("SNAPSHOT"))
     assertFalse("legacy groupId com.comraide must be removed", text.contains("com.comraide"))
     assertFalse("legacy misspelling comraide must be removed", text.contains("comraide"))
