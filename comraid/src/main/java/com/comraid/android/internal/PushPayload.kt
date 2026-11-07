@@ -19,13 +19,17 @@ internal data class PushDisplay(
   val title: String,
   val body: String,
   val imageUrl: String? = null,
+  val subtitle: String? = null,
   val androidChannelId: String? = null,
   val sound: String? = null,
   val badge: Int? = null,
   /** Android notification tag: a newer push with the same thread replaces the older one. */
   val threadId: String? = null,
   val highPriority: Boolean = true,
-)
+) {
+  /** `"high"` or `"normal"` for receive-event parity (ADR 0012). */
+  val priority: String get() = if (highPriority) "high" else "normal"
+}
 
 internal object PushPayload {
   /** Reserved `cr_*` keys — stripped from the RN/event `data` map so sender keys stay unchanged. */
@@ -37,6 +41,7 @@ internal object PushPayload {
     "cr_title",
     "cr_body",
     "cr_image_url",
+    "cr_subtitle",
     "cr_android_channel_id",
     "cr_deep_link",
     "cr_actions",
@@ -81,6 +86,7 @@ internal object PushPayload {
       title = data["cr_title"].orEmpty(),
       body = data["cr_body"].orEmpty(),
       imageUrl = data["cr_image_url"]?.takeIf { it.isNotBlank() },
+      subtitle = data["cr_subtitle"]?.trim()?.takeIf { it.isNotEmpty() },
       androidChannelId = data["cr_android_channel_id"]?.takeIf { it.isNotBlank() },
       sound = data["cr_sound"]?.trim()?.takeIf { it.isNotEmpty() },
       badge = data["cr_badge"]?.trim()?.toIntOrNull()?.takeIf { it >= 0 },

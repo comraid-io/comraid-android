@@ -4,9 +4,9 @@ package com.comraid.android.internal
  * Decides whether [ComraidMessagingService] should post a system tray item for a remote push.
  *
  * - Data-only Notifications never auto-draw (ADR 0006); apps use [com.comraid.android.ComRaid.presentNotification].
+ * - Non–data-only alerts are presented by the SDK (ADR 0014): FCM sends data messages only.
  * - Non–data-only alerts show in the foreground by default; hosts may opt out via configuration.
- * - Background FCM notification-block messages are drawn by the OS; the SDK must not double-draw.
- * - Non–data-only actions payloads still use SDK tray presentation (hybrid path).
+ * - Background FCM notification-block messages (legacy / non-ComRaid) are drawn by the OS; do not double-draw.
  */
 internal object RemoteDisplayPolicy {
   fun shouldAutoDisplay(
@@ -20,14 +20,9 @@ internal object RemoteDisplayPolicy {
 
     if (appInForeground && !displayForegroundNotifications) return false
 
-    val hasActions = PushPayload.actions(data).isNotEmpty()
-    if (hasActions) return true
+    // Legacy / non-ComRaid: OS owns notification-block presentation in the background.
+    if (!appInForeground && hasFcmNotificationBlock) return false
 
-    if (appInForeground && displayForegroundNotifications) return true
-
-    // Background: OS owns notification-block presentation.
-    if (hasFcmNotificationBlock) return false
-
-    return false
+    return true
   }
 }

@@ -50,7 +50,7 @@ class ComRaidRemoteAndPropertiesTest {
       body = """{"subscription_id":"sub-new","subscription_credential":"cred-new","channel":"push","anonymous":true,"platform":"android","provider":"fcm"}""",
     )
 
-    ComRaid.register()
+    ComRaid.registerBlocking()
 
     val body = JSONObject(transport.awaitRequests(1).single().body!!)
     assertEquals("2.1.0", body.getString("app_version"))
@@ -58,6 +58,25 @@ class ComRaidRemoteAndPropertiesTest {
     assertEquals("Pixel 8", device.getString("model"))
     assertEquals("14", device.getString("os_version"))
     assertEquals("Google", device.getString("manufacturer"))
+  }
+
+  @Test
+  fun setAttributes_null_value_is_sent_as_json_null() {
+    store.save(subscriptionId = "sub-1", credential = "cred-1")
+    transport.enqueue(
+      HttpResponse(
+        200,
+        """{"subscription_id":"sub-1","contact_id":"c-1","external_user_id":"user_123","anonymous":false,"verified":false}""",
+      ),
+      HttpResponse(200, """{"contact_id":"c-1","external_user_id":"user_123","updated_attributes":["plan"]}"""),
+    )
+
+    ComRaid.login("user_123")
+    ComRaid.setAttributes(mapOf("plan" to null))
+
+    val body = JSONObject(transport.requests[1].body!!)
+    val attrs = body.getJSONObject("attributes")
+    assertTrue(attrs.isNull("plan"))
   }
 
   @Test

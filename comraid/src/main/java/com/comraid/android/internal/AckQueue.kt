@@ -28,6 +28,10 @@ internal data class QueuedAck(
 /**
  * Durable delivery ACK queue. Persists to [AckQueueStore] so background FCM /
  * receivers can enqueue and flush without a foreground [com.comraid.android.ComRaid] init.
+ *
+ * Enqueue and flush share [flushLock]. At most one flush runs network I/O at a time;
+ * items enqueued while a flush is in flight are kept and flushed later. Claimed items
+ * stay durable until SUCCESS/DROP so a process death mid-send can re-flush on restart.
  */
 internal class AckQueue(
   apiBaseUrl: String,
@@ -37,10 +41,13 @@ internal class AckQueue(
   private val maxSize: Int = DEFAULT_MAX_SIZE,
   private val maxAgeMs: Long = DEFAULT_MAX_AGE_MS,
   private val maxFlush: Int = DEFAULT_MAX_FLUSH,
+  private val flushScheduler: AckFlushScheduler? = null,
 ) {
   private val baseUrl = apiBaseUrl.trimEnd('/')
 
   fun storageKey(): String = "comraid:$baseUrl:ack-queue"
+
+  fun sentStorageKey(): String = "comraid:$baseUrl:ack-sent"
 
   fun enqueueFromPayload(
     kind: AckKind,
@@ -63,15 +70,12 @@ internal class AckQueue(
   }
 
   fun enqueue(event: QueuedAck) {
-    val now = clock()
-    var items = load().filter { now - it.enqueuedAt <= maxAgeMs }
-    val key = eventKey(event)
-    items = items.filter { eventKey(it) != key }
-    items = items + event
-    while (items.size > maxSize) {
-      items = items.drop(1)
+    val accepted = synchronized(flushLock) {
+      enqueueLocked(event)
     }
-    save(items)
+    if (accepted) {
+      flushScheduler?.schedule()
+    }
   }
 
   /**
@@ -82,37 +86,93 @@ internal class AckQueue(
     flushExecutor.execute { runCatching { flush() } }
   }
 
-  /** Blocking network flush; call from a background thread. Flushes are serialized per process. */
-  fun flush() = synchronized(flushLock) { flushLocked() }
+  /**
+   * Blocking network flush; call from a background thread.
+   * At most one flush is in flight per process; a concurrent call returns immediately.
+   */
+  fun flush() {
+    synchronized(flushLock) {
+      if (flushInFlight) return
+      flushInFlight = true
+    }
+    try {
+      flushOnce()
+    } finally {
+      synchronized(flushLock) {
+        flushInFlight = false
+      }
+    }
+  }
 
-  private fun flushLocked() {
+  /** @return true when the event was written to the durable queue. */
+  private fun enqueueLocked(event: QueuedAck): Boolean {
     val now = clock()
+    pruneSentLocked(now)
+    if (wasSentRecentlyLocked(event, now)) return false
+
     var items = load().filter { now - it.enqueuedAt <= maxAgeMs }
-    val ready = items.filter { it.nextAttemptAt <= now }.take(maxFlush)
-    if (ready.isEmpty()) {
-      save(items)
-      return
+    val key = eventKey(event)
+    items = items.filter { eventKey(it) != key }
+    items = items + event
+    while (items.size > maxSize) {
+      items = items.drop(1)
+    }
+    save(items)
+    return true
+  }
+
+  private fun flushOnce() {
+    val ready: List<QueuedAck>
+    synchronized(flushLock) {
+      val now = clock()
+      pruneSentLocked(now)
+      val items = load().filter { now - it.enqueuedAt <= maxAgeMs }
+      ready = items.filter { it.nextAttemptAt <= now }.take(maxFlush)
+      if (ready.isEmpty()) {
+        save(items)
+        return
+      }
+      // Keep claimed items durable until SUCCESS/DROP so a process death mid-send
+      // can re-flush on restart. Concurrent flushes are blocked by flushInFlight;
+      // concurrent enqueues merge under flushLock after network I/O.
     }
 
-    val readyKeys = ready.map { eventKey(it) }.toSet()
-    var remaining = items.filter { eventKey(it) !in readyKeys }
-
+    val retries = mutableListOf<QueuedAck>()
+    val finished = mutableListOf<QueuedAck>()
     for (event in ready) {
       when (val result = send(event)) {
-        SendResult.SUCCESS, SendResult.DROP -> Unit
+        SendResult.SUCCESS, SendResult.DROP -> finished += event
         is SendResult.RETRY -> {
           val attempts = event.attempts + 1
           val nextAt = result.nextAttemptAt
             ?: (clock() + min(60_000L, (1000.0 * 2.0.pow(min(attempts, 5))).toLong()))
-          remaining = remaining + event.copy(attempts = attempts, nextAttemptAt = nextAt)
+          retries += event.copy(attempts = attempts, nextAttemptAt = nextAt)
         }
       }
     }
 
-    while (remaining.size > maxSize) {
-      remaining = remaining.drop(1)
+    synchronized(flushLock) {
+      val now = clock()
+      // SUCCESS and DROP both leave the queue; both count as already-sent within TTL so
+      // trampoline + consumeLaunchIntent (and action vs body) do not re-POST the same Delivery.
+      for (event in finished) {
+        markSentLocked(event, now)
+      }
+      val finishedKeys = finished.map { eventKey(it) }.toSet()
+
+      var items = load().filter { now - it.enqueuedAt <= maxAgeMs }
+      // Drop only items this flush finished; leave concurrent enqueues and unfinished claims.
+      items = items.filter { eventKey(it) !in finishedKeys }
+      for (retry in retries) {
+        val key = eventKey(retry)
+        if (wasSentRecentlyLocked(retry, now)) continue
+        items = items.filter { eventKey(it) != key } + retry
+      }
+      while (items.size > maxSize) {
+        items = items.drop(1)
+      }
+      save(items)
     }
-    save(remaining)
   }
 
   private fun send(event: QueuedAck): SendResult {
@@ -198,8 +258,48 @@ internal class AckQueue(
     store.set(storageKey(), array.toString())
   }
 
-  private fun eventKey(event: QueuedAck): String =
-    "${event.kind.wire}:${event.deliveryId}:${event.actionId.orEmpty()}"
+  private fun loadSent(): MutableMap<String, Long> {
+    val raw = store.get(sentStorageKey()) ?: return mutableMapOf()
+    return try {
+      val array = JSONArray(raw)
+      val out = mutableMapOf<String, Long>()
+      for (i in 0 until array.length()) {
+        val obj = array.optJSONObject(i) ?: continue
+        val key = obj.optString("key").takeIf { it.isNotBlank() } ?: continue
+        out[key] = obj.optLong("sentAt")
+      }
+      out
+    } catch (_: Exception) {
+      mutableMapOf()
+    }
+  }
+
+  private fun saveSent(sent: Map<String, Long>) {
+    val array = JSONArray()
+    sent.forEach { (key, sentAt) ->
+      array.put(JSONObject().put("key", key).put("sentAt", sentAt))
+    }
+    store.set(sentStorageKey(), array.toString())
+  }
+
+  private fun pruneSentLocked(now: Long) {
+    val sent = loadSent().filterValues { now - it <= maxAgeMs }
+    saveSent(sent)
+  }
+
+  private fun wasSentRecentlyLocked(event: QueuedAck, now: Long): Boolean {
+    val sentAt = loadSent()[eventKey(event)] ?: return false
+    return now - sentAt <= maxAgeMs
+  }
+
+  private fun markSentLocked(event: QueuedAck, now: Long) {
+    val sent = loadSent()
+    sent[eventKey(event)] = now
+    saveSent(sent.filterValues { now - it <= maxAgeMs })
+  }
+
+  /** Dedupe key: Delivery id + kind (opened is one per Delivery, action id ignored). */
+  private fun eventKey(event: QueuedAck): String = "${event.kind.wire}:${event.deliveryId}"
 
   private sealed class SendResult {
     data object SUCCESS : SendResult()
@@ -214,6 +314,8 @@ internal class AckQueue(
 
     // Process-wide: every AckQueue instance shares one store, so flushes must not overlap.
     val flushLock = Any()
+    @Volatile
+    var flushInFlight = false
     val flushExecutor: java.util.concurrent.Executor =
       java.util.concurrent.Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "comraid-ack-flush").apply { isDaemon = true }

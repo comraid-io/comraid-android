@@ -3,14 +3,12 @@ package com.comraid.android.internal
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import org.json.JSONObject
 
 /**
  * Handles notification tap / action buttons: enqueues opened ACK and flushes.
  * Works from persisted [SdkConfigStore] without requiring foreground ComRaid init.
- * On content tap (no action id), launches `cr_deep_link` when present so SDK-built
- * fallback notifications honor the API deep link.
+ * Does not route deep links — the host reads `deepLink` from the opened event.
  */
 class ComraidNotificationActionReceiver : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent?) {
@@ -24,27 +22,6 @@ class ComraidNotificationActionReceiver : BroadcastReceiver() {
     val helpers = BackgroundAckHelpers.from(context) ?: return
     helpers.queue.enqueueFromPayload(AckKind.OPENED, data, actionId)
     helpers.queue.flushAsync()
-
-    if (actionId.isNullOrBlank()) {
-      launchDeepLinkIfPresent(context, data)
-    }
-  }
-
-  private fun launchDeepLinkIfPresent(context: Context, data: Map<String, String>) {
-    val deepLink = PushPayload.deepLink(data) ?: return
-    val uri = Uri.parse(deepLink)
-    val packaged = Intent(Intent.ACTION_VIEW, uri).apply {
-      addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-      setPackage(context.packageName)
-    }
-    val launch = if (packaged.resolveActivity(context.packageManager) != null) {
-      packaged
-    } else {
-      Intent(Intent.ACTION_VIEW, uri).apply {
-        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-      }
-    }
-    runCatching { context.startActivity(launch) }
   }
 
   companion object {

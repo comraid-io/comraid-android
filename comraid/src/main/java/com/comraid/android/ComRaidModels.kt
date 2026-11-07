@@ -48,19 +48,42 @@ data class ComRaidScheduleResult(
   val fallbackReason: String? = null,
 )
 
+enum class TimerState { RUNNING, PAUSED, CANCELLED, COMPLETED }
+
+/**
+ * Local countdown timer (device Local notification). Not a Message / Delivery.
+ * Survives reboot via durable store; [RUNNING] timers are re-armed on boot.
+ */
+data class ComRaidTimer(
+  val id: String,
+  val notification: ComRaidNotification,
+  val state: TimerState,
+  val targetAtMillis: Long?,
+  val remainingDurationMillis: Long,
+  val precision: SchedulePrecision = SchedulePrecision.INEXACT,
+  val fallbackPolicy: FallbackPolicy = FallbackPolicy.FAIL,
+)
+
 data class ComRaidCapabilities(
   val notificationsEnabled: Boolean,
   val exactAlarmsAvailable: Boolean,
 )
 
 /**
- * Subscription (device) Properties sent on register / token refresh
- * (`app_version` + `device` object per mobile OpenAPI).
+ * Subscription / Contact Properties sent on register, token refresh, and session.
+ * The SDK fills these automatically; [ComRaid.setDeviceProperties] overrides
+ * individual fields (non-null wins) for the next outbound call.
  */
 data class DeviceProperties(
   val appVersion: String? = null,
+  val sdkVersion: String? = null,
   val model: String? = null,
+  val os: String? = null,
   val osVersion: String? = null,
+  val locale: String? = null,
+  val timezone: String? = null,
+  val language: String? = null,
+  val country: String? = null,
   val extras: Map<String, Any?> = emptyMap(),
 )
 
@@ -69,5 +92,7 @@ sealed class ComRaidException(message: String) : IllegalStateException(message) 
   class NotReady : ComRaidException("Subscription is not ready; grant notification permission and register first")
   class InvalidSchedule(message: String) : ComRaidException(message)
   class ExactAlarmUnavailable : ComRaidException("Exact alarm access is unavailable")
+  class TimerNotFound : ComRaidException("Timer not found")
+  class TimerNotPaused : ComRaidException("Timer is not in the expected pause/resume state")
   class ApiError(message: String) : ComRaidException(message)
 }
