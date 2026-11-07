@@ -58,18 +58,18 @@ Local capability probe (no network): whether notifications are enabled and wheth
 
 #### `requestPermission(activity: Activity, onResult: (granted: Boolean) -> Unit)`
 
-Requests `POST_NOTIFICATIONS` when needed (Android 13+), then registers a Subscription if granted. Configure only stores settings; this is when token fetch + register run.
+Requests `POST_NOTIFICATIONS` when needed (Android 13+), then registers a Subscription if granted. Configure only stores settings; token fetch + register run on the SDK executor. `onResult` is delivered on the main thread after register completes when permission is granted (skipped if register fails).
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `activity` | `Activity` | Host activity for the system permission dialog. |
-| `onResult` | `(Boolean) -> Unit` | Invoked with whether permission (and notifications) are granted. |
+| `onResult` | `(Boolean) -> Unit` | Invoked on the main thread with whether permission (and notifications) are granted. |
 
 **Returns:** `Unit`. Requires prior `configure`.
 
 #### `onRequestPermissionsResult(requestCode: Int, grantResults: IntArray)`
 
-Forward `Activity.onRequestPermissionsResult` for `requestPermission`. Registers on grant.
+Forward `Activity.onRequestPermissionsResult` for `requestPermission`. On grant, register runs on the SDK executor; the permission callback runs on the main thread after register completes.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
@@ -78,11 +78,27 @@ Forward `Activity.onRequestPermissionsResult` for `requestPermission`. Registers
 
 **Returns:** `Unit`.
 
-#### `register()`
+#### `register(onComplete: (Result<Unit>) -> Unit)`
 
-Fetches the FCM token and registers (or refreshes) a Subscription. Call after notification permission is granted, or use `requestPermission`. When a Subscription credential is already persisted (encrypted SharedPreferences), it is sent as `subscription_credential` so a repeat register keeps the same Subscription and Contact.
+Fetches the FCM token and registers (or refreshes) a Subscription on the SDK executor. Returns immediately; `onComplete` is delivered on the main thread. Call after notification permission is granted, or use `requestPermission`. When a Subscription credential is already persisted (encrypted SharedPreferences), it is sent as `subscription_credential` so a repeat register keeps the same Subscription and Contact.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `onComplete` | `(Result<Unit>) -> Unit` | Success or `ComRaidException` / other failure. |
+
+**Returns:** `Unit`. Requires prior `configure`.
+
+#### `suspend register()`
+
+Coroutine variant of `register`. Suspends until registration completes; work still runs on the SDK executor.
 
 **Returns:** `Unit`. Throws `ComRaidException.NotConfigured` / `ApiError`.
+
+#### `registerBlocking()`
+
+Worker-thread-only blocking register. Throws `IllegalStateException` if called on the main thread. Prefer the callback or suspend `register` APIs.
+
+**Returns:** `Unit`. Throws `ComRaidException.NotConfigured` / `ApiError` / `IllegalStateException`.
 
 #### `onPushTokenRefresh()`
 
@@ -158,7 +174,9 @@ Opt the Subscription back into the push Channel (`channel: push`).
 
 ```kotlin
 ComRaid.requestPermission(activity) { granted -> /* … */ }
-// or ComRaid.register() when permission is already granted
+// or when permission is already granted:
+ComRaid.register { result -> result.getOrThrow() }
+// suspend { ComRaid.register() }
 
 ComRaid.login("user_123")
 ComRaid.login("user_123", jwt = jwtFromYourBackend)
