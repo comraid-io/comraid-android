@@ -22,6 +22,7 @@ class ReadmeMethodReferenceParityTest {
       "requestPermission",
       "onRequestPermissionsResult",
       "register",
+      "registerBlocking",
       "onPushTokenRefresh",
       "getToken",
       "getInitialNotification",

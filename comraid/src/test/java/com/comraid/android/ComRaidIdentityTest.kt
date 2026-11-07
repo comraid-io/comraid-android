@@ -170,7 +170,7 @@ class ComRaidIdentityTest {
       body = """{"subscription_id":"sub-new","subscription_credential":"cred-new","channel":"push","anonymous":true,"platform":"android","provider":"fcm"}""",
     )
 
-    ComRaid.register()
+    ComRaid.registerBlocking()
 
     val request = transport.requests.single()
     assertEquals("/mobile/subscriptions", request.path)
