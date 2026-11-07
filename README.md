@@ -254,7 +254,8 @@ Schedule a local notification at an absolute trigger time.
 
 #### `startTimer(notification: ComRaidNotification, durationMillis: Long, precision: SchedulePrecision = INEXACT, fallbackPolicy: FallbackPolicy = FAIL): ComRaidScheduleResult`
 
-Convenience wrapper: schedules at `now + durationMillis`.
+Starts a countdown timer that fires a Local notification when complete. Persists timer state
+(`RUNNING`) so pause/resume/list and reboot restore work like iOS.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
@@ -265,9 +266,46 @@ Convenience wrapper: schedules at `now + durationMillis`.
 
 **Returns:** `ComRaidScheduleResult`. Throws `InvalidSchedule` if duration ≤ 0.
 
+#### `pauseTimer(id: String): ComRaidTimer`
+
+Pauses a running timer, clears its pending system alarm, and stores remaining duration.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | `String` | Timer / notification id. |
+
+**Returns:** `ComRaidTimer` (`PAUSED`). Throws `TimerNotFound` / `TimerNotPaused`.
+
+#### `resumeTimer(id: String): ComRaidTimer`
+
+Resumes a paused timer from remaining duration (re-arms the alarm).
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | `String` | Timer / notification id. |
+
+**Returns:** `ComRaidTimer` (`RUNNING`). Throws `TimerNotFound` / `TimerNotPaused`.
+
+#### `cancelTimer(id: String)`
+
+Cancels a timer and removes its pending schedule.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | `String` | Timer / notification id. |
+
+**Returns:** `Unit`.
+
+#### `timers(): List<ComRaidTimer>`
+
+Lists persisted timers (`RUNNING`, `PAUSED`, `CANCELLED`, `COMPLETED`).
+
+**Returns:** `List<ComRaidTimer>`. Throws `NotConfigured` if timer store is unavailable.
+
 #### `cancel(id: String)`
 
 Cancel a pending local schedule by notification id and remove it from the durable store.
+If a matching timer exists, marks it `CANCELLED` (same as iOS `cancel`).
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
@@ -290,6 +328,10 @@ val result = ComRaid.startTimer(
   ),
   durationMillis = 25 * 60 * 1000L,
 )
+ComRaid.pauseTimer("focus-1")
+ComRaid.resumeTimer("focus-1")
+val allTimers = ComRaid.timers()
+ComRaid.cancelTimer("focus-1")
 
 ComRaid.schedule(
   ComRaidScheduleRequest(
@@ -342,10 +384,12 @@ If a push names a category channel this device hasn't created yet, the SDK syncs
 
 | Type | When |
 |------|------|
-| `NotConfigured` | Public API called before `configure` (or schedule store unavailable). |
+| `NotConfigured` | Public API called before `configure` (or schedule/timer store unavailable). |
 | `NotReady` | No Subscription credential, or Attributes without Login. |
 | `InvalidSchedule` | Bad trigger / duration. |
 | `ExactAlarmUnavailable` | Exact precision requested with `FallbackPolicy.FAIL` and no exact-alarm access. |
+| `TimerNotFound` | Unknown timer id. |
+| `TimerNotPaused` | Pause/resume state mismatch. |
 | `ApiError` | Mobile HTTP / FCM token failure. |
 
 ## Notes
