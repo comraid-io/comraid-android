@@ -14,9 +14,11 @@ import androidx.core.content.ContextCompat
 import com.comraid.android.internal.AckKind
 import com.comraid.android.internal.AckQueue
 import com.comraid.android.internal.AckQueueStore
+import com.comraid.android.internal.AndroidDeviceInfoProvider
 import com.comraid.android.internal.BackgroundAckHelpers
 import com.comraid.android.internal.ComraidNotificationOpenActivity
 import com.comraid.android.internal.ComraidScheduler
+import com.comraid.android.internal.DeviceInfoProvider
 import com.comraid.android.internal.FcmTokenProvider
 import com.comraid.android.internal.HttpTransport
 import com.comraid.android.internal.MobileApiClient
@@ -27,6 +29,7 @@ import com.comraid.android.internal.RemoteNotificationDisplay
 import com.comraid.android.internal.ScheduleStore
 import com.comraid.android.internal.SdkConfigStore
 import com.comraid.android.internal.SdkExecutors
+import com.comraid.android.internal.SessionTracker
 import com.comraid.android.internal.SharedPreferencesAckQueueStore
 import com.comraid.android.internal.SharedPreferencesSubscriptionStore
 import com.comraid.android.internal.SubscriptionStore
@@ -34,7 +37,10 @@ import com.comraid.android.internal.TimerStore
 import com.comraid.android.internal.TokenProvider
 import com.comraid.android.internal.UrlConnectionHttpTransport
 import com.comraid.android.internal.WorkManagerAckFlushScheduler
+import com.comraid.android.internal.mergeDeviceProperties
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.concurrent.thread
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
@@ -57,6 +63,7 @@ object ComRaid {
   @Volatile private var initialNotificationConsumed = false
   @Volatile private var backgroundHandlerRegistered = false
   @Volatile private var clock: () -> Long = { System.currentTimeMillis() }
+  private val lifecycleRegistered = AtomicBoolean(false)
   private val foregroundMessageListeners = CopyOnWriteArrayList<RemoteMessageListener>()
   private val backgroundMessageListeners = CopyOnWriteArrayList<RemoteMessageListener>()
   private val openedListeners = CopyOnWriteArrayList<RemoteMessageListener>()
@@ -93,8 +100,11 @@ object ComRaid {
         ackQueue = ackQueue,
         deviceProperties = null,
         externalUserId = store.externalUserId,
+        deviceInfoProvider = AndroidDeviceInfoProvider(appContext),
+        sessionTracker = SessionTracker(clock = { System.currentTimeMillis() }),
       )
     }
+    registerProcessLifecycle(appContext)
     ackQueue.flushAsync()
   }
 
@@ -111,6 +121,7 @@ object ComRaid {
     scheduleStore: ScheduleStore? = null,
     timerStore: TimerStore? = null,
     scheduler: NotificationScheduler? = null,
+    deviceInfoProvider: DeviceInfoProvider = DeviceInfoProvider { DeviceProperties() },
     clock: () -> Long = { System.currentTimeMillis() },
   ) {
     validateConfiguration(configuration)
@@ -133,6 +144,8 @@ object ComRaid {
         ackQueue = ackQueue,
         deviceProperties = null,
         externalUserId = subscriptionStore.externalUserId,
+        deviceInfoProvider = deviceInfoProvider,
+        sessionTracker = SessionTracker(clock = clock),
       )
     }
   }
@@ -146,6 +159,7 @@ object ComRaid {
       initialNotificationConsumed = false
       backgroundHandlerRegistered = false
       clock = { System.currentTimeMillis() }
+      lifecycleRegistered.set(false)
       foregroundMessageListeners.clear()
       backgroundMessageListeners.clear()
       openedListeners.clear()
@@ -156,6 +170,16 @@ object ComRaid {
   /** Test seam: boot / time-change restore without a Context. */
   internal fun restoreForTests() {
     restoreInternal()
+  }
+
+  /** Test seam: simulate process foreground without ProcessLifecycleOwner. */
+  internal fun handleAppForegroundForTests() {
+    onAppForeground(async = false)
+  }
+
+  /** Test seam: simulate process background without ProcessLifecycleOwner. */
+  internal fun handleAppBackgroundForTests() {
+    onAppBackground()
   }
 
   /**
@@ -425,14 +449,15 @@ object ComRaid {
     val subscriptionId = current.subscriptionStore.subscriptionId
     val credential = current.subscriptionStore.credential
     if (subscriptionId != null && credential != null) {
-      current.api.replaceToken(subscriptionId, credential, token, current.deviceProperties)
+      current.api.replaceToken(subscriptionId, credential, token, resolvedProperties(current))
     } else {
       val result = current.api.register(
         token = token,
-        properties = current.deviceProperties,
+        properties = resolvedProperties(current),
         subscriptionCredential = null,
       )
       current.subscriptionStore.save(result.subscriptionId, result.credential)
+      current.sessionTracker.markSessionRecorded()
     }
     notifyTokenRefresh(token)
   }
@@ -473,7 +498,10 @@ object ComRaid {
     current.api.optIn(subscriptionId, credential, channel = "push")
   }
 
-  /** Persist Subscription device Properties for the next register / token refresh. */
+  /**
+   * Override automatically collected Properties for subsequent register / token /
+   * session calls. Null fields keep the auto-collected value.
+   */
   fun setDeviceProperties(properties: DeviceProperties) {
     val current = requireRuntime()
     synchronized(lock) {
@@ -734,10 +762,11 @@ object ComRaid {
     val token = current.tokenProvider.currentToken()
     val result = current.api.register(
       token = token,
-      properties = current.deviceProperties,
+      properties = resolvedProperties(current),
       subscriptionCredential = current.subscriptionStore.credential,
     )
     current.subscriptionStore.save(result.subscriptionId, result.credential)
+    current.sessionTracker.markSessionRecorded()
   }
 
   private fun requireRuntime(): Runtime =
@@ -752,6 +781,59 @@ object ComRaid {
     return subscriptionId to credential
   }
 
+  private fun resolvedProperties(current: Runtime): DeviceProperties =
+    mergeDeviceProperties(current.deviceInfoProvider.collect(), current.deviceProperties)
+
+  private fun registerProcessLifecycle(appContext: Context) {
+    if (!lifecycleRegistered.compareAndSet(false, true)) return
+    val application = appContext as? android.app.Application ?: return
+    application.registerActivityLifecycleCallbacks(
+      object : android.app.Application.ActivityLifecycleCallbacks {
+        private var started = 0
+
+        override fun onActivityStarted(activity: android.app.Activity) {
+          if (started++ == 0) onAppForeground(async = true)
+        }
+
+        override fun onActivityStopped(activity: android.app.Activity) {
+          if (--started == 0) onAppBackground()
+        }
+
+        override fun onActivityCreated(activity: android.app.Activity, savedInstanceState: android.os.Bundle?) = Unit
+        override fun onActivityResumed(activity: android.app.Activity) = Unit
+        override fun onActivityPaused(activity: android.app.Activity) = Unit
+        override fun onActivitySaveInstanceState(activity: android.app.Activity, outState: android.os.Bundle) = Unit
+        override fun onActivityDestroyed(activity: android.app.Activity) = Unit
+      },
+    )
+  }
+
+  private fun onAppBackground() {
+    runtime?.sessionTracker?.onBackground()
+  }
+
+  private fun onAppForeground(async: Boolean) {
+    val current = runtime ?: return
+    if (!current.sessionTracker.shouldRecordSession()) return
+    val subscriptionId = current.subscriptionStore.subscriptionId
+    val credential = current.subscriptionStore.credential
+    if (subscriptionId.isNullOrBlank() || credential.isNullOrBlank()) return
+    val work = {
+      runCatching {
+        val latest = runtime ?: return@runCatching
+        val id = latest.subscriptionStore.subscriptionId ?: return@runCatching
+        val cred = latest.subscriptionStore.credential ?: return@runCatching
+        latest.api.session(id, cred, resolvedProperties(latest))
+        latest.sessionTracker.markSessionRecorded()
+      }
+    }
+    if (async) {
+      thread(name = "comraid-session", isDaemon = true) { work() }
+    } else {
+      work()
+    }
+  }
+
   private data class Runtime(
     val configuration: ComRaidConfiguration,
     val scheduleStore: ScheduleStore?,
@@ -763,6 +845,8 @@ object ComRaid {
     val ackQueue: AckQueue,
     val deviceProperties: DeviceProperties?,
     val externalUserId: String?,
+    val deviceInfoProvider: DeviceInfoProvider,
+    val sessionTracker: SessionTracker,
   )
 
   private class InMemoryAckQueueStoreForTests : AckQueueStore {

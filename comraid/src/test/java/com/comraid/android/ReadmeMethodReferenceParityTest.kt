@@ -7,7 +7,7 @@ import java.io.File
 /**
  * Acceptance seam: root README method reference vs gap matrix §3 (Android public ComRaid).
  * Depth B: each public method has a signature-style heading; Errors + docs cross-link;
- * mobileSubscriptionSession documented as HTTP-only (no SDK method).
+ * mobileSubscriptionSession documented as automatic (no public SDK method).
  */
 class ReadmeMethodReferenceParityTest {
   private val readme by lazy {
@@ -57,15 +57,22 @@ class ReadmeMethodReferenceParityTest {
   }
 
   @Test
-  fun documentsErrorsAndHttpOnlySession() {
+  fun documentsErrorsAndAutomaticSession() {
     assertTrue(
       "README must include an Errors subsection for ComRaidException",
       readme.contains("## Errors") && readme.contains("ComRaidException"),
     )
     assertTrue(
-      "README must note mobileSubscriptionSession is HTTP-only (no SDK method)",
-      readme.contains("mobileSubscriptionSession") &&
-        (readme.contains("HTTP-only") || readme.contains("no SDK")),
+      "README must note session is automatic (no public SDK method)",
+      readme.contains("/session") &&
+        readme.contains("no") &&
+        (readme.contains("public `session`") || readme.contains("hosts do not call")),
+    )
+    assertTrue(
+      "README must list automatically collected Properties",
+      readme.contains("app_version") &&
+        readme.contains("sdk_version") &&
+        readme.contains("timezone"),
     )
   }
 

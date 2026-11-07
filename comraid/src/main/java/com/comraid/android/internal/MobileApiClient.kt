@@ -99,6 +99,17 @@ internal class MobileApiClient(
     requireSuccess(response, expected = setOf(200))
   }
 
+  fun session(
+    subscriptionId: String,
+    credential: String,
+    properties: DeviceProperties?,
+  ) {
+    val body = JSONObject().put("subscription_credential", credential)
+    putDeviceFields(body, properties)
+    val response = post("/mobile/subscriptions/$subscriptionId/session", body)
+    requireSuccess(response, expected = setOf(200))
+  }
+
   fun listNotificationCategories(): List<NotificationCategory> {
     val response = transport.execute(
       HttpRequest(
@@ -134,7 +145,13 @@ internal class MobileApiClient(
   private fun putDeviceFields(body: JSONObject, properties: DeviceProperties?) {
     if (properties == null) return
     properties.appVersion?.takeIf { it.isNotBlank() }?.let { body.put("app_version", it) }
+    properties.sdkVersion?.takeIf { it.isNotBlank() }?.let { body.put("sdk_version", it) }
+    properties.locale?.takeIf { it.isNotBlank() }?.let { body.put("locale", it) }
+    properties.timezone?.takeIf { it.isNotBlank() }?.let { body.put("timezone", it) }
+    properties.language?.takeIf { it.isNotBlank() }?.let { body.put("language", it) }
+    properties.country?.takeIf { it.isNotBlank() }?.let { body.put("country", it) }
     val device = JSONObject()
+    properties.os?.takeIf { it.isNotBlank() }?.let { device.put("os", it) }
     properties.model?.takeIf { it.isNotBlank() }?.let { device.put("model", it) }
     properties.osVersion?.takeIf { it.isNotBlank() }?.let { device.put("os_version", it) }
     properties.extras.forEach { (key, value) ->
