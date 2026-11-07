@@ -58,18 +58,18 @@ Local capability probe (no network): whether notifications are enabled and wheth
 
 #### `requestPermission(activity: Activity, onResult: (granted: Boolean) -> Unit)`
 
-Requests `POST_NOTIFICATIONS` when needed (Android 13+), then registers a Subscription if granted. Configure only stores settings; this is when token fetch + register run.
+Requests `POST_NOTIFICATIONS` when needed (Android 13+), then registers a Subscription if granted. Configure only stores settings; token fetch + register run on the SDK executor. `onResult` is delivered on the main thread after register completes when permission is granted (skipped if register fails).
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `activity` | `Activity` | Host activity for the system permission dialog. |
-| `onResult` | `(Boolean) -> Unit` | Invoked with whether permission (and notifications) are granted. |
+| `onResult` | `(Boolean) -> Unit` | Invoked on the main thread with whether permission (and notifications) are granted. |
 
 **Returns:** `Unit`. Requires prior `configure`.
 
 #### `onRequestPermissionsResult(requestCode: Int, grantResults: IntArray)`
 
-Forward `Activity.onRequestPermissionsResult` for `requestPermission`. Registers on grant.
+Forward `Activity.onRequestPermissionsResult` for `requestPermission`. On grant, register runs on the SDK executor; the permission callback runs on the main thread after register completes.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
@@ -78,11 +78,27 @@ Forward `Activity.onRequestPermissionsResult` for `requestPermission`. Registers
 
 **Returns:** `Unit`.
 
-#### `register()`
+#### `register(onComplete: (Result<Unit>) -> Unit)`
 
-Fetches the FCM token and registers (or refreshes) a Subscription. Call after notification permission is granted, or use `requestPermission`.
+Fetches the FCM token and registers (or refreshes) a Subscription on the SDK executor. Returns immediately; `onComplete` is delivered on the main thread. Call after notification permission is granted, or use `requestPermission`. When a Subscription credential is already persisted (encrypted SharedPreferences), it is sent as `subscription_credential` so a repeat register keeps the same Subscription and Contact.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `onComplete` | `(Result<Unit>) -> Unit` | Success or `ComRaidException` / other failure. |
+
+**Returns:** `Unit`. Requires prior `configure`.
+
+#### `suspend register()`
+
+Coroutine variant of `register`. Suspends until registration completes; work still runs on the SDK executor.
 
 **Returns:** `Unit`. Throws `ComRaidException.NotConfigured` / `ApiError`.
+
+#### `registerBlocking()`
+
+Worker-thread-only blocking register. Throws `IllegalStateException` if called on the main thread. Prefer the callback or suspend `register` APIs.
+
+**Returns:** `Unit`. Throws `ComRaidException.NotConfigured` / `ApiError` / `IllegalStateException`.
 
 #### `onPushTokenRefresh()`
 
@@ -129,7 +145,7 @@ Records that a JS background message handler is registered (React Native). Does 
 
 #### `login(externalUserId: String, jwt: String? = null)`
 
-Binds the current Subscription to a known Contact (`external_user_id`). Optional Identity verification JWT from your backend.
+Binds the current Subscription to a known Contact (`external_user_id`). Optional Identity verification JWT from your backend. Persists the External user ID with the Subscription id and credential so `setAttributes` works after an app restart.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
@@ -140,7 +156,7 @@ Binds the current Subscription to a known Contact (`external_user_id`). Optional
 
 #### `logout()`
 
-Clears the Contact binding on the Subscription. Stored credential remains so Contact-level opt-in/out still works while Inactive.
+Makes the Subscription **Inactive** and clears its server credential. Clears the persisted Subscription id, credential, and External user ID, then immediately registers a fresh Subscription on a new Anonymous contact. Mobile routes refuse the old row with `401 unauthorized` or `409 subscription_inactive`.
 
 **Returns:** `Unit`.
 
@@ -158,7 +174,9 @@ Opt the Subscription back into the push Channel (`channel: push`).
 
 ```kotlin
 ComRaid.requestPermission(activity) { granted -> /* … */ }
-// or ComRaid.register() when permission is already granted
+// or when permission is already granted:
+ComRaid.register { result -> result.getOrThrow() }
+// suspend { ComRaid.register() }
 
 ComRaid.login("user_123")
 ComRaid.login("user_123", jwt = jwtFromYourBackend)
@@ -185,7 +203,7 @@ Upsert Contact Attributes for the logged-in Contact (`PUT /mobile/subscriptions/
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `attributes` | `Map<String, Any?>` | Attribute map (e.g. `plan` → `premium`). Empty map is a successful empty update. |
+| `attributes` | `Map<String, Any?>` | Attribute map (e.g. `plan` → `premium`). Empty map is a successful empty update. A `null` value removes that Attribute. |
 
 **Returns:** `Unit`. Throws `NotReady` if not logged in.
 
@@ -254,7 +272,8 @@ Schedule a local notification at an absolute trigger time.
 
 #### `startTimer(notification: ComRaidNotification, durationMillis: Long, precision: SchedulePrecision = INEXACT, fallbackPolicy: FallbackPolicy = FAIL): ComRaidScheduleResult`
 
-Convenience wrapper: schedules at `now + durationMillis`.
+Starts a countdown timer that fires a Local notification when complete. Persists timer state
+(`RUNNING`) so pause/resume/list and reboot restore work like iOS.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
@@ -265,9 +284,46 @@ Convenience wrapper: schedules at `now + durationMillis`.
 
 **Returns:** `ComRaidScheduleResult`. Throws `InvalidSchedule` if duration ≤ 0.
 
+#### `pauseTimer(id: String): ComRaidTimer`
+
+Pauses a running timer, clears its pending system alarm, and stores remaining duration.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | `String` | Timer / notification id. |
+
+**Returns:** `ComRaidTimer` (`PAUSED`). Throws `TimerNotFound` / `TimerNotPaused`.
+
+#### `resumeTimer(id: String): ComRaidTimer`
+
+Resumes a paused timer from remaining duration (re-arms the alarm).
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | `String` | Timer / notification id. |
+
+**Returns:** `ComRaidTimer` (`RUNNING`). Throws `TimerNotFound` / `TimerNotPaused`.
+
+#### `cancelTimer(id: String)`
+
+Cancels a timer and removes its pending schedule.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | `String` | Timer / notification id. |
+
+**Returns:** `Unit`.
+
+#### `timers(): List<ComRaidTimer>`
+
+Lists persisted timers (`RUNNING`, `PAUSED`, `CANCELLED`, `COMPLETED`).
+
+**Returns:** `List<ComRaidTimer>`. Throws `NotConfigured` if timer store is unavailable.
+
 #### `cancel(id: String)`
 
 Cancel a pending local schedule by notification id and remove it from the durable store.
+If a matching timer exists, marks it `CANCELLED` (same as iOS `cancel`).
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
@@ -290,6 +346,10 @@ val result = ComRaid.startTimer(
   ),
   durationMillis = 25 * 60 * 1000L,
 )
+ComRaid.pauseTimer("focus-1")
+ComRaid.resumeTimer("focus-1")
+val allTimers = ComRaid.timers()
+ComRaid.cancelTimer("focus-1")
 
 ComRaid.schedule(
   ComRaidScheduleRequest(
@@ -303,10 +363,10 @@ val pending = ComRaid.pendingSchedules()
 
 ## Deep links and rich fields
 
-API `content.push.deep_link` arrives in FCM data as `cr_deep_link`. On notification open, read it from the payload map passed through `EXTRA_DATA_JSON` (tap / action handlers) or from `RemoteMessage.data` when you own presentation.
+API `content.push.deep_link` arrives in FCM data as `cr_deep_link`. On notification open, the SDK opens your launch activity and surfaces `deepLink` on the opened listener / `getInitialNotification`. The SDK does **not** fire `ACTION_VIEW` or route for you — navigate in the host.
 
-- When FCM includes a system `notification` block, Android applies sound / tag / notification count from the provider; the host still reads `cr_deep_link` on open for in-app navigation.
-- When the SDK builds the tray notification (data-first payloads or action buttons), the content intent uses `cr_deep_link` when it is a valid URI and launches it after the opened ACK. Host apps still own intent-filter / routing setup.
+- When FCM includes a system `notification` block, Android applies sound / tag / notification count from the provider; read `RemoteMessageEvent.deepLink` (or `cr_deep_link` on the payload) on open for in-app navigation.
+- When the SDK builds the tray notification (data-first payloads or action buttons), the trampoline still brings your app forward and delivers the same `deepLink` on the opened event.
 
 When the SDK draws the notification (action buttons, or the app is in the foreground) it applies:
 
@@ -342,14 +402,16 @@ If a push names a category channel this device hasn't created yet, the SDK syncs
 
 | Type | When |
 |------|------|
-| `NotConfigured` | Public API called before `configure` (or schedule store unavailable). |
+| `NotConfigured` | Public API called before `configure` (or schedule/timer store unavailable). |
 | `NotReady` | No Subscription credential, or Attributes without Login. |
 | `InvalidSchedule` | Bad trigger / duration. |
 | `ExactAlarmUnavailable` | Exact precision requested with `FallbackPolicy.FAIL` and no exact-alarm access. |
+| `TimerNotFound` | Unknown timer id. |
+| `TimerNotPaused` | Pause/resume state mismatch. |
 | `ApiError` | Mobile HTTP / FCM token failure. |
 
 ## Notes
 
 - Wire field is `external_user_id` (never `external_id`).
-- Logout keeps the stored credential so Contact-level opt-in/out still works while Inactive.
+- Subscription id, credential, and External user ID persist in encrypted SharedPreferences; after Logout the SDK clears that store and registers a fresh Subscription.
 - Package namespace is `com.comraid.android`; never `com.comraide`.
