@@ -10,7 +10,8 @@ import org.json.JSONObject
 
 /**
  * Activity trampoline for remote notification body/action taps (targetSdk ≥ 31 safe).
- * Records opened ACK, surfaces the open to listeners, then launches deep link or launcher.
+ * Records opened ACK, surfaces the open (including `deepLink`) to listeners, then
+ * brings the host launch activity forward. Never fires [Intent.ACTION_VIEW].
  */
 class ComraidNotificationOpenActivity : Activity() {
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -81,28 +82,16 @@ class ComraidNotificationOpenActivity : Activity() {
     }
 
     fun launchApp(context: Context, data: Map<String, String>) {
-      val deepLink = PushPayload.deepLink(data)
-      if (deepLink != null) {
-        val uri = Uri.parse(deepLink)
-        val packaged = Intent(Intent.ACTION_VIEW, uri).apply {
-          addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-          setPackage(context.packageName)
+      when (val target = HostOpenLaunch.resolve(data)) {
+        is HostOpenLaunch.Target.PackageLauncher -> {
+          val launcher = context.packageManager.getLaunchIntentForPackage(context.packageName)
+            ?.apply {
+              addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+              target.extras.forEach { (k, v) -> putExtra(k, v) }
+            } ?: return
+          runCatching { context.startActivity(launcher) }
         }
-        val launch = if (packaged.resolveActivity(context.packageManager) != null) {
-          packaged
-        } else {
-          Intent(Intent.ACTION_VIEW, uri).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-          }
-        }
-        runCatching { context.startActivity(launch) }
-        return
       }
-      val launcher = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
-        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-        PushPayload.openIntentExtras(data).forEach { (k, v) -> putExtra(k, v) }
-      } ?: return
-      runCatching { context.startActivity(launcher) }
     }
   }
 }

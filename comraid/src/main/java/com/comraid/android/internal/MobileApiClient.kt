@@ -8,11 +8,18 @@ internal class MobileApiClient(
   private val appId: String,
   private val transport: HttpTransport,
 ) {
-  fun register(token: String, properties: DeviceProperties?): RegisterResult {
+  fun register(
+    token: String,
+    properties: DeviceProperties?,
+    subscriptionCredential: String? = null,
+  ): RegisterResult {
     val body = JSONObject()
       .put("platform", "android")
       .put("token", token)
       .put("provider", "fcm")
+    if (!subscriptionCredential.isNullOrBlank()) {
+      body.put("subscription_credential", subscriptionCredential)
+    }
     putDeviceFields(body, properties)
     val response = post("/mobile/subscriptions", body)
     requireSuccess(response, expected = setOf(200, 201))
