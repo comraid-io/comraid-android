@@ -57,6 +57,25 @@ class OpenedAckPathsTest {
   }
 
   @Test
+  fun deep_link_tap_surfaces_deepLink_on_opened_listener_and_initial_notification() {
+    transport.nextResponse = HttpResponse(200, """{"delivery_id":"d-link","status":"opened"}""")
+    val data = mapOf(
+      "cr_delivery_id" to "d-link",
+      "cr_attribution_token" to "tok-link",
+      "cr_title" to "Order",
+      "cr_deep_link" to "myapp://orders/42",
+    )
+    var opened: RemoteMessageEvent? = null
+    ComRaid.addNotificationOpenedListener { opened = it }
+
+    val event = ComRaid.handleNotificationOpen(data, actionId = null, coldStart = true)
+
+    assertEquals("myapp://orders/42", event.deepLink)
+    assertEquals("myapp://orders/42", opened?.deepLink)
+    assertEquals("myapp://orders/42", ComRaid.getInitialNotification()?.deepLink)
+  }
+
+  @Test
   fun action_button_tap_posts_opened_ack_with_action_id() {
     transport.nextResponse = HttpResponse(200, """{"delivery_id":"d-act","status":"opened"}""")
     val data = mapOf(
