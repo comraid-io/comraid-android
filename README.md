@@ -353,7 +353,7 @@ If a push names a category channel this device hasn't created yet, the SDK syncs
 | `ComRaidScheduleRequest` / `ComRaidScheduleResult` | Local schedule input / outcome. |
 | `SchedulePrecision` / `FallbackPolicy` | Exact vs inexact; fail vs fall back. |
 | `ComRaidCapabilities` | `notificationsEnabled`, `exactAlarmsAvailable`. |
-| `DeviceProperties` | Subscription Properties for register / token refresh. |
+| `DeviceProperties` | Overrides for auto-collected Properties on register / token / session. |
 
 ## Errors
 
