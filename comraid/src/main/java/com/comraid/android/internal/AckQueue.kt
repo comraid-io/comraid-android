@@ -30,7 +30,8 @@ internal data class QueuedAck(
  * receivers can enqueue and flush without a foreground [com.comraid.android.ComRaid] init.
  *
  * Enqueue and flush share [flushLock]. At most one flush runs network I/O at a time;
- * items enqueued while a flush is in flight are kept and flushed later.
+ * items enqueued while a flush is in flight are kept and flushed later. Claimed items
+ * stay durable until SUCCESS/DROP so a process death mid-send can re-flush on restart.
  */
 internal class AckQueue(
   apiBaseUrl: String,
@@ -131,9 +132,9 @@ internal class AckQueue(
         save(items)
         return
       }
-      val readyKeys = ready.map { eventKey(it) }.toSet()
-      // Drop claimed items from the store before network I/O so concurrent enqueues survive.
-      save(items.filter { eventKey(it) !in readyKeys })
+      // Keep claimed items durable until SUCCESS/DROP so a process death mid-send
+      // can re-flush on restart. Concurrent flushes are blocked by flushInFlight;
+      // concurrent enqueues merge under flushLock after network I/O.
     }
 
     val retries = mutableListOf<QueuedAck>()
@@ -157,8 +158,11 @@ internal class AckQueue(
       for (event in finished) {
         markSentLocked(event, now)
       }
+      val finishedKeys = finished.map { eventKey(it) }.toSet()
 
       var items = load().filter { now - it.enqueuedAt <= maxAgeMs }
+      // Drop only items this flush finished; leave concurrent enqueues and unfinished claims.
+      items = items.filter { eventKey(it) !in finishedKeys }
       for (retry in retries) {
         val key = eventKey(retry)
         if (wasSentRecentlyLocked(retry, now)) continue

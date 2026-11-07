@@ -1,0 +1,51 @@
+# Draft release / publish dry-run workflow (sdks-devtools-v1 ticket 12).
+#
+# Blocked on enabling CI for this repo: planning/.scratch/v1-tracker/issues/35-ci-github-actions-sdk-repos.md
+# (#35 is ready-for-human — runners, secrets, branch protection). Until #35 lands:
+# - Treat this file as the intended workflow shape
+# - Run the dry-run locally: ./scripts/maven-central-dry-run.sh
+#
+# Required secrets for the publish job (never commit): MAVEN_CENTRAL_USERNAME,
+# MAVEN_CENTRAL_PASSWORD, SIGNING_IN_MEMORY_KEY, SIGNING_IN_MEMORY_KEY_PASSWORD (optional).
+
+name: Release publish
+
+on:
+  pull_request:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  dry-run:
+    name: Maven Central dry-run
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install gnupg (signed dry-run)
+        run: sudo apt-get update && sudo apt-get install -y gnupg
+      - name: Publish dry-run
+        run: ./scripts/maven-central-dry-run.sh
+
+  publish:
+    name: Publish to Maven Central
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: dry-run
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Publish to Central Portal
+        env:
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_IN_MEMORY_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_IN_MEMORY_KEY_PASSWORD }}
+        run: ./gradlew :comraid:publishToMavenCentral --no-configuration-cache

@@ -321,6 +321,59 @@ class AckQueueTest {
     assertEquals(1, transport.requests.size)
   }
 
+  @Test
+  fun claimed_ack_stays_durable_until_send_succeeds_and_survives_crash_window() {
+    val sendStarted = CountDownLatch(1)
+    val allowSend = CountDownLatch(1)
+    val midFlight = AckQueue(
+      apiBaseUrl = "https://api.example.com",
+      store = storage,
+      transport = HttpTransport {
+        sendStarted.countDown()
+        assertTrue(allowSend.await(5, TimeUnit.SECONDS))
+        HttpResponse(statusCode = 200, body = "{}")
+      },
+      clock = { 1_000_000L },
+      flushScheduler = scheduler,
+    )
+    midFlight.enqueueFromPayload(
+      AckKind.DELIVERED,
+      mapOf("cr_delivery_id" to "d-crash", "cr_attribution_token" to "t"),
+    )
+
+    val flushDone = CountDownLatch(1)
+    Thread {
+      midFlight.flush()
+      flushDone.countDown()
+    }.start()
+    assertTrue(sendStarted.await(5, TimeUnit.SECONDS))
+
+    // Process-death window: claimed for send but not yet accepted — still durable.
+    val midFlightRaw = storage.get(midFlight.storageKey())!!
+    val midFlightItems = JSONArray(midFlightRaw)
+    assertEquals(1, midFlightItems.length())
+    assertEquals("d-crash", midFlightItems.getJSONObject(0).getString("deliveryId"))
+
+    // Snapshot mid-flight state, then let the in-process flush finish so the
+    // process-wide flushInFlight flag clears (a real crash starts a new process).
+    val snapshot = InMemoryAckQueueStore()
+    snapshot.set(midFlight.storageKey(), midFlightRaw)
+    allowSend.countDown()
+    assertTrue(flushDone.await(5, TimeUnit.SECONDS))
+
+    transport.nextResponse = HttpResponse(statusCode = 200, body = "{}")
+    val restarted = AckQueue(
+      apiBaseUrl = "https://api.example.com",
+      store = snapshot,
+      transport = transport,
+      clock = { 1_000_000L },
+    )
+    restarted.flush()
+    assertEquals(1, transport.requests.size)
+    assertEquals("/deliveries/d-crash/delivered", transport.requests.single().path)
+    assertEquals("[]", snapshot.get(restarted.storageKey()))
+  }
+
   private class InMemoryAckQueueStore : AckQueueStore {
     private val map = mutableMapOf<String, String>()
 

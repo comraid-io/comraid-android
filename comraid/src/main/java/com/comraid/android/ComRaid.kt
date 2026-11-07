@@ -352,7 +352,7 @@ object ComRaid {
    * Requests notification permission when needed, then registers a Subscription if granted.
    * Configure only stores settings; this is when token fetch + register run (on the SDK
    * executor). [onResult] is invoked on the main thread after register completes when
-   * permission is granted; register failures mean [onResult] is not called.
+   * permission is granted (`true` on success, `false` if register fails) so hosts never hang.
    * Channels are created in [configure] before this runs (Android 13+ prerequisite).
    */
   fun requestPermission(activity: Activity, onResult: (granted: Boolean) -> Unit) {
@@ -752,8 +752,7 @@ object ComRaid {
 
   private fun registerAfterPermissionGrant(onResult: (granted: Boolean) -> Unit) {
     register { result ->
-      result.onSuccess { onResult(true) }
-      // Match prior sync behaviour: permission callback is skipped when register throws.
+      onResult(result.isSuccess)
     }
   }
 

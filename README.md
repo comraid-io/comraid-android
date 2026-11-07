@@ -61,12 +61,12 @@ Local capability probe (no network): whether notifications are enabled and wheth
 
 #### `requestPermission(activity: Activity, onResult: (granted: Boolean) -> Unit)`
 
-Requests `POST_NOTIFICATIONS` when needed (Android 13+), then registers a Subscription if granted. Configure only stores settings; token fetch + register run on the SDK executor. `onResult` is delivered on the main thread after register completes when permission is granted (skipped if register fails).
+Requests `POST_NOTIFICATIONS` when needed (Android 13+), then registers a Subscription if granted. Configure only stores settings; token fetch + register run on the SDK executor. `onResult` is always delivered on the main thread after register completes when permission is granted (`true` on success, `false` if register fails) so hosts never hang.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `activity` | `Activity` | Host activity for the system permission dialog. |
-| `onResult` | `(Boolean) -> Unit` | Invoked on the main thread with whether permission (and notifications) are granted. |
+| `onResult` | `(Boolean) -> Unit` | Invoked on the main thread with whether permission was granted and register succeeded. |
 
 **Returns:** `Unit`. Requires prior `configure`.
 
@@ -428,6 +428,18 @@ If a push names a category channel this device hasn't created yet, the SDK syncs
 | `TimerNotFound` | Unknown timer id. |
 | `TimerNotPaused` | Pause/resume state mismatch. |
 | `ApiError` | Mobile HTTP / FCM token failure. |
+
+## Publishing
+
+Maven coordinate: `com.comraid:comraid` (MIT). Central Portal + signing are configured via the [vanniktech maven-publish plugin](https://vanniktech.github.io/gradle-maven-publish-plugin/central/); credentials and the GPG key come from env / `~/.gradle/gradle.properties` (`mavenCentralUsername`, `mavenCentralPassword`, `signingInMemoryKey`), never from the repo.
+
+Local dry-run (classpath check, `publishToMavenLocal`, signed bundle validation):
+
+```bash
+./scripts/maven-central-dry-run.sh
+```
+
+Release upload (after Central namespace + secrets exist): `./gradlew :comraid:publishToMavenCentral`. Pressing publish for V1 is owned outside this repo; GitHub Actions enablement is tracked as v1-tracker #35. A draft workflow lives at `.github/workflows/release-publish.yml`.
 
 ## Notes
 
