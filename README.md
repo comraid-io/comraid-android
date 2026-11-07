@@ -303,10 +303,10 @@ val pending = ComRaid.pendingSchedules()
 
 ## Deep links and rich fields
 
-API `content.push.deep_link` arrives in FCM data as `cr_deep_link`. On notification open, read it from the payload map passed through `EXTRA_DATA_JSON` (tap / action handlers) or from `RemoteMessage.data` when you own presentation.
+API `content.push.deep_link` arrives in FCM data as `cr_deep_link`. On notification open, the SDK opens your launch activity and surfaces `deepLink` on the opened listener / `getInitialNotification`. The SDK does **not** fire `ACTION_VIEW` or route for you — navigate in the host.
 
-- When FCM includes a system `notification` block, Android applies sound / tag / notification count from the provider; the host still reads `cr_deep_link` on open for in-app navigation.
-- When the SDK builds the tray notification (data-first payloads or action buttons), the content intent uses `cr_deep_link` when it is a valid URI and launches it after the opened ACK. Host apps still own intent-filter / routing setup.
+- When FCM includes a system `notification` block, Android applies sound / tag / notification count from the provider; read `RemoteMessageEvent.deepLink` (or `cr_deep_link` on the payload) on open for in-app navigation.
+- When the SDK builds the tray notification (data-first payloads or action buttons), the trampoline still brings your app forward and delivers the same `deepLink` on the opened event.
 
 When the SDK draws the notification (action buttons, or the app is in the foreground) it applies:
 
