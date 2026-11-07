@@ -22,6 +22,7 @@ class ReadmeMethodReferenceParityTest {
       "requestPermission",
       "onRequestPermissionsResult",
       "register",
+      "registerBlocking",
       "onPushTokenRefresh",
       "getToken",
       "getInitialNotification",
@@ -39,6 +40,10 @@ class ReadmeMethodReferenceParityTest {
       "flushAcks",
       "schedule",
       "startTimer",
+      "pauseTimer",
+      "resumeTimer",
+      "cancelTimer",
+      "timers",
       "cancel",
       "pendingSchedules",
     )

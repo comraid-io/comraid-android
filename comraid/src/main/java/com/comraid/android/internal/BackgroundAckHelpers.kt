@@ -15,6 +15,7 @@ internal data class BackgroundAckHelpers(
         apiBaseUrl = configuration.apiBaseUrl,
         store = SharedPreferencesAckQueueStore(appContext),
         transport = transport,
+        flushScheduler = WorkManagerAckFlushScheduler(appContext),
       )
       return BackgroundAckHelpers(queue = queue, configuration = configuration)
     }

@@ -48,6 +48,22 @@ data class ComRaidScheduleResult(
   val fallbackReason: String? = null,
 )
 
+enum class TimerState { RUNNING, PAUSED, CANCELLED, COMPLETED }
+
+/**
+ * Local countdown timer (device Local notification). Not a Message / Delivery.
+ * Survives reboot via durable store; [RUNNING] timers are re-armed on boot.
+ */
+data class ComRaidTimer(
+  val id: String,
+  val notification: ComRaidNotification,
+  val state: TimerState,
+  val targetAtMillis: Long?,
+  val remainingDurationMillis: Long,
+  val precision: SchedulePrecision = SchedulePrecision.INEXACT,
+  val fallbackPolicy: FallbackPolicy = FallbackPolicy.FAIL,
+)
+
 data class ComRaidCapabilities(
   val notificationsEnabled: Boolean,
   val exactAlarmsAvailable: Boolean,
@@ -69,5 +85,7 @@ sealed class ComRaidException(message: String) : IllegalStateException(message) 
   class NotReady : ComRaidException("Subscription is not ready; grant notification permission and register first")
   class InvalidSchedule(message: String) : ComRaidException(message)
   class ExactAlarmUnavailable : ComRaidException("Exact alarm access is unavailable")
+  class TimerNotFound : ComRaidException("Timer not found")
+  class TimerNotPaused : ComRaidException("Timer is not in the expected pause/resume state")
   class ApiError(message: String) : ComRaidException(message)
 }
