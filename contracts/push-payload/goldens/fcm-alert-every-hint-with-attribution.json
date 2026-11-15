@@ -1,0 +1,91 @@
+{
+  "content": {
+    "provider": "fcm",
+    "title": "Hello",
+    "body": "World",
+    "priority": "normal",
+    "android_channel_id": "orders",
+    "data": {
+      "order_id": "42"
+    },
+    "push": {
+      "image_url": "https://cdn.example.com/a.png",
+      "deep_link": "app://orders/1",
+      "sound": "chime",
+      "subtitle": "Order update",
+      "badge": 3,
+      "thread_id": "order-42",
+      "data_only": false,
+      "actions": [
+        {
+          "id": "accept",
+          "text": "Accept"
+        },
+        {
+          "id": "reject",
+          "text": "Reject",
+          "icon": "ic"
+        }
+      ]
+    },
+    "attribution": {
+      "message_id": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+      "delivery_id": "11111111-2222-4333-8444-555555555555",
+      "message_recipient_id": "99999999-8888-4777-8666-555555555555",
+      "attribution_token": "cr-attr-token-fixed-001"
+    }
+  },
+  "pushPayload": {
+    "data": {
+      "order_id": "42",
+      "cr_title": "Hello",
+      "cr_body": "World",
+      "cr_image_url": "https://cdn.example.com/a.png",
+      "cr_deep_link": "app://orders/1",
+      "cr_sound": "chime",
+      "cr_subtitle": "Order update",
+      "cr_badge": "3",
+      "cr_thread_id": "order-42",
+      "cr_android_channel_id": "orders",
+      "cr_priority": "normal",
+      "cr_actions": "[{\"id\":\"accept\",\"text\":\"Accept\"},{\"id\":\"reject\",\"text\":\"Reject\",\"icon\":\"ic\"}]",
+      "cr_message_id": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+      "cr_delivery_id": "11111111-2222-4333-8444-555555555555",
+      "cr_message_recipient_id": "99999999-8888-4777-8666-555555555555",
+      "cr_attribution_token": "cr-attr-token-fixed-001"
+    },
+    "android": {
+      "priority": "normal"
+    }
+  },
+  "expectedEvent": {
+    "messageId": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+    "deliveryId": "11111111-2222-4333-8444-555555555555",
+    "attributionToken": "cr-attr-token-fixed-001",
+    "title": "Hello",
+    "body": "World",
+    "data": {
+      "order_id": "42"
+    },
+    "deepLink": "app://orders/1",
+    "actions": [
+      {
+        "id": "accept",
+        "text": "Accept"
+      },
+      {
+        "id": "reject",
+        "text": "Reject",
+        "icon": "ic"
+      }
+    ],
+    "actionId": null,
+    "imageUrl": "https://cdn.example.com/a.png",
+    "subtitle": "Order update",
+    "sound": "chime",
+    "badge": 3,
+    "threadId": "order-42",
+    "androidChannelId": "orders",
+    "priority": "normal"
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "content": {
+    "provider": "fcm",
+    "title": "Hello",
+    "body": "World",
+    "data": {},
+    "push": {
+      "data_only": false
+    }
+  },
+  "pushPayload": {
+    "data": {
+      "cr_title": "Hello",
+      "cr_body": "World"
+    },
+    "android": {
+      "priority": "high"
+    }
+  },
+  "expectedEvent": {
+    "messageId": null,
+    "deliveryId": null,
+    "attributionToken": null,
+    "title": "Hello",
+    "body": "World",
+    "data": {},
+    "deepLink": null,
+    "actions": [],
+    "actionId": null,
+    "imageUrl": null,
+    "subtitle": null,
+    "sound": null,
+    "badge": null,
+    "threadId": null,
+    "androidChannelId": null,
+    "priority": "high"
+  }
+}

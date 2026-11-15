@@ -1,0 +1,45 @@
+{
+  "content": {
+    "provider": "apns",
+    "title": "Hi",
+    "body": "There",
+    "data": {},
+    "push": {
+      "subtitle": "Order update",
+      "badge": 7,
+      "thread_id": "orders",
+      "data_only": false
+    }
+  },
+  "pushPayload": {
+    "aps": {
+      "alert": {
+        "title": "Hi",
+        "body": "There",
+        "subtitle": "Order update"
+      },
+      "sound": "default",
+      "badge": 7,
+      "thread-id": "orders",
+      "mutable-content": 1
+    }
+  },
+  "expectedEvent": {
+    "messageId": null,
+    "deliveryId": null,
+    "attributionToken": null,
+    "title": "Hi",
+    "body": "There",
+    "data": {},
+    "deepLink": null,
+    "actions": [],
+    "actionId": null,
+    "imageUrl": null,
+    "subtitle": "Order update",
+    "sound": "default",
+    "badge": 7,
+    "threadId": "orders",
+    "androidChannelId": null,
+    "priority": "high"
+  }
+}

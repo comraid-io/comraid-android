@@ -1,0 +1,74 @@
+{
+  "content": {
+    "provider": "apns",
+    "title": "Rematch?",
+    "body": "Play again",
+    "data": {
+      "game_id": "9"
+    },
+    "push": {
+      "image_url": "https://cdn.example.com/rematch.png",
+      "deep_link": "app://games/9",
+      "sound": "chime.caf",
+      "subtitle": "Your turn",
+      "badge": 2,
+      "thread_id": "game-9",
+      "data_only": true,
+      "actions": [
+        {
+          "id": "accept",
+          "text": "Accept"
+        },
+        {
+          "id": "decline",
+          "text": "Decline"
+        }
+      ]
+    }
+  },
+  "pushPayload": {
+    "aps": {
+      "content-available": 1
+    },
+    "game_id": "9",
+    "cr_title": "Rematch?",
+    "cr_body": "Play again",
+    "cr_data_only": "true",
+    "cr_image_url": "https://cdn.example.com/rematch.png",
+    "cr_deep_link": "app://games/9",
+    "cr_sound": "chime.caf",
+    "cr_subtitle": "Your turn",
+    "cr_badge": "2",
+    "cr_thread_id": "game-9",
+    "cr_actions": "[{\"id\":\"accept\",\"text\":\"Accept\"},{\"id\":\"decline\",\"text\":\"Decline\"}]"
+  },
+  "expectedEvent": {
+    "messageId": null,
+    "deliveryId": null,
+    "attributionToken": null,
+    "title": "Rematch?",
+    "body": "Play again",
+    "data": {
+      "game_id": "9"
+    },
+    "deepLink": "app://games/9",
+    "actions": [
+      {
+        "id": "accept",
+        "text": "Accept"
+      },
+      {
+        "id": "decline",
+        "text": "Decline"
+      }
+    ],
+    "actionId": null,
+    "imageUrl": "https://cdn.example.com/rematch.png",
+    "subtitle": "Your turn",
+    "sound": "chime.caf",
+    "badge": 2,
+    "threadId": "game-9",
+    "androidChannelId": null,
+    "priority": "high"
+  }
+}
