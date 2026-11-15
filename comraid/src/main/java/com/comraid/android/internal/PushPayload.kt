@@ -33,7 +33,7 @@ internal data class PushDisplay(
 
 internal object PushPayload {
   /** Reserved `cr_*` keys — stripped from the RN/event `data` map so sender keys stay unchanged. */
-  private val reservedKeys = setOf(
+  internal val reservedKeys = setOf(
     "cr_delivery_id",
     "cr_attribution_token",
     "cr_message_id",

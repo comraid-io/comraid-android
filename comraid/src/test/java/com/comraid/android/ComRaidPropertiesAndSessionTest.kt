@@ -57,7 +57,7 @@ class ComRaidPropertiesAndSessionTest {
       body = """{"subscription_id":"sub-new","subscription_credential":"cred-new","channel":"push","anonymous":true,"platform":"android","provider":"fcm"}""",
     )
 
-    ComRaid.register()
+    ComRaid.registerBlocking()
 
     val body = JSONObject(transport.requests.single().body!!)
     assertEquals("9.9.9", body.getString("app_version"))
@@ -86,7 +86,7 @@ class ComRaidPropertiesAndSessionTest {
       body = """{"subscription_id":"sub-new","subscription_credential":"cred-new","channel":"push","anonymous":true,"platform":"android","provider":"fcm"}""",
     )
 
-    ComRaid.register()
+    ComRaid.registerBlocking()
 
     val body = JSONObject(transport.requests.single().body!!)
     assertEquals("2.1.0", body.getString("app_version"))
@@ -138,7 +138,7 @@ class ComRaidPropertiesAndSessionTest {
       statusCode = 201,
       body = """{"subscription_id":"sub-new","subscription_credential":"cred-new","channel":"push","anonymous":true,"platform":"android","provider":"fcm"}""",
     )
-    ComRaid.register()
+    ComRaid.registerBlocking()
     transport.requests.clear()
 
     ComRaid.handleAppForegroundForTests()
