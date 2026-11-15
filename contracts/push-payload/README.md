@@ -22,6 +22,14 @@ See [ADR 0017](../../agent-docs/adr/0017-push-payload-contract-vendored-from-pla
 
 Do not restate the key list here — edit `contract.json`.
 
+## Golden `expectedEvent` shape
+
+Goldens record tip SDK receive events, not an aspirational event model:
+
+- `dataOnly` and `messageRecipientId` are omitted: tip Android/iOS/RN receive events do not expose them (Reserved keys are stripped from `data` only). Wire still carries `cr_data_only` / `cr_message_recipient_id` in `pushPayload` and in `contract.json`.
+- `priority` is always `"high"` or `"normal"` (default `"high"`), including APNs goldens where no `cr_priority` is written — matching tip parsers.
+- `androidChannelId` is `null` on APNs goldens (FCM-only hint).
+
 ## Add or change a Reserved key
 
 1. Edit `contract.json` and bump `version`.
