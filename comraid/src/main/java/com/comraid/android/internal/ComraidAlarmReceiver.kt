@@ -50,6 +50,8 @@ internal class ComraidAlarmReceiver : BroadcastReceiver() {
     if (mayNotify) {
       NotificationManagerCompat.from(context).notify(id, 0, notification)
     }
-    ScheduleStore(context.applicationContext).remove(id)
+    val appContext = context.applicationContext
+    ScheduleStore(appContext).remove(id)
+    TimerStore(appContext).markCompleted(id)
   }
 }

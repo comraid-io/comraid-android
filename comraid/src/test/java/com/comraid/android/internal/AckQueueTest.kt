@@ -6,21 +6,27 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 class AckQueueTest {
   private lateinit var storage: InMemoryAckQueueStore
   private lateinit var transport: RecordingTransport
+  private lateinit var scheduler: RecordingFlushScheduler
   private lateinit var queue: AckQueue
 
   @Before
   fun setUp() {
     storage = InMemoryAckQueueStore()
     transport = RecordingTransport()
+    scheduler = RecordingFlushScheduler()
     queue = AckQueue(
       apiBaseUrl = "https://api.example.com",
       store = storage,
       transport = transport,
       clock = { 1_000_000L },
+      flushScheduler = scheduler,
     )
   }
 
@@ -202,6 +208,172 @@ class AckQueueTest {
     assertEquals(0, transport.requests.size)
   }
 
+  @Test
+  fun enqueue_schedules_workmanager_flush() {
+    queue.enqueueFromPayload(
+      AckKind.DELIVERED,
+      mapOf("cr_delivery_id" to "d-sched", "cr_attribution_token" to "t"),
+    )
+    assertEquals(1, scheduler.scheduleCount.get())
+  }
+
+  @Test
+  fun enqueue_during_flush_survives_final_save() {
+    val sendStarted = CountDownLatch(1)
+    val allowSend = CountDownLatch(1)
+    val blocking = AckQueue(
+      apiBaseUrl = "https://api.example.com",
+      store = storage,
+      transport = HttpTransport {
+        sendStarted.countDown()
+        assertTrue(allowSend.await(5, TimeUnit.SECONDS))
+        HttpResponse(statusCode = 200, body = "{}")
+      },
+      clock = { 1_000_000L },
+      flushScheduler = scheduler,
+    )
+    blocking.enqueueFromPayload(
+      AckKind.DELIVERED,
+      mapOf("cr_delivery_id" to "d-flush", "cr_attribution_token" to "t1"),
+    )
+
+    val flushDone = CountDownLatch(1)
+    Thread {
+      blocking.flush()
+      flushDone.countDown()
+    }.start()
+    assertTrue(sendStarted.await(5, TimeUnit.SECONDS))
+
+    blocking.enqueueFromPayload(
+      AckKind.OPENED,
+      mapOf("cr_delivery_id" to "d-during", "cr_attribution_token" to "t2"),
+    )
+    allowSend.countDown()
+    assertTrue(flushDone.await(5, TimeUnit.SECONDS))
+
+    val remaining = JSONArray(storage.get(blocking.storageKey())!!)
+    assertEquals(1, remaining.length())
+    assertEquals("d-during", remaining.getJSONObject(0).getString("deliveryId"))
+    assertEquals("opened", remaining.getJSONObject(0).getString("kind"))
+  }
+
+  @Test
+  fun two_concurrent_flushes_send_each_ack_once() {
+    val sendCount = AtomicInteger(0)
+    val holdSend = CountDownLatch(1)
+    val sendStarted = CountDownLatch(1)
+    val concurrent = AckQueue(
+      apiBaseUrl = "https://api.example.com",
+      store = storage,
+      transport = HttpTransport {
+        sendCount.incrementAndGet()
+        sendStarted.countDown()
+        assertTrue(holdSend.await(5, TimeUnit.SECONDS))
+        HttpResponse(statusCode = 200, body = "{}")
+      },
+      clock = { 1_000_000L },
+      flushScheduler = scheduler,
+    )
+    concurrent.enqueueFromPayload(
+      AckKind.DELIVERED,
+      mapOf("cr_delivery_id" to "d-once", "cr_attribution_token" to "t"),
+    )
+
+    val done = CountDownLatch(2)
+    repeat(2) {
+      Thread {
+        concurrent.flush()
+        done.countDown()
+      }.start()
+    }
+    assertTrue(sendStarted.await(5, TimeUnit.SECONDS))
+    // Give the second flush a chance to race; it must not start another send.
+    Thread.sleep(100)
+    holdSend.countDown()
+    assertTrue(done.await(5, TimeUnit.SECONDS))
+    assertEquals(1, sendCount.get())
+    assertEquals("[]", storage.get(concurrent.storageKey()))
+  }
+
+  @Test
+  fun duplicate_opened_is_deduped_by_delivery_id() {
+    transport.nextResponse = HttpResponse(statusCode = 200, body = "{}")
+    val data = mapOf("cr_delivery_id" to "d-open", "cr_attribution_token" to "t")
+    queue.enqueueFromPayload(AckKind.OPENED, data, actionId = null)
+    queue.enqueueFromPayload(AckKind.OPENED, data, actionId = "accept")
+
+    val remaining = JSONArray(storage.get(queue.storageKey())!!)
+    assertEquals(1, remaining.length())
+    assertEquals("opened", remaining.getJSONObject(0).getString("kind"))
+    assertEquals("d-open", remaining.getJSONObject(0).getString("deliveryId"))
+  }
+
+  @Test
+  fun already_sent_ack_is_not_reenqueued_within_ttl() {
+    transport.nextResponse = HttpResponse(statusCode = 200, body = "{}")
+    val data = mapOf("cr_delivery_id" to "d-sent", "cr_attribution_token" to "t")
+    queue.enqueueFromPayload(AckKind.OPENED, data)
+    queue.flush()
+    assertEquals("[]", storage.get(queue.storageKey()))
+
+    queue.enqueueFromPayload(AckKind.OPENED, data, actionId = "accept")
+    assertEquals("[]", storage.get(queue.storageKey()))
+    assertEquals(1, transport.requests.size)
+  }
+
+  @Test
+  fun claimed_ack_stays_durable_until_send_succeeds_and_survives_crash_window() {
+    val sendStarted = CountDownLatch(1)
+    val allowSend = CountDownLatch(1)
+    val midFlight = AckQueue(
+      apiBaseUrl = "https://api.example.com",
+      store = storage,
+      transport = HttpTransport {
+        sendStarted.countDown()
+        assertTrue(allowSend.await(5, TimeUnit.SECONDS))
+        HttpResponse(statusCode = 200, body = "{}")
+      },
+      clock = { 1_000_000L },
+      flushScheduler = scheduler,
+    )
+    midFlight.enqueueFromPayload(
+      AckKind.DELIVERED,
+      mapOf("cr_delivery_id" to "d-crash", "cr_attribution_token" to "t"),
+    )
+
+    val flushDone = CountDownLatch(1)
+    Thread {
+      midFlight.flush()
+      flushDone.countDown()
+    }.start()
+    assertTrue(sendStarted.await(5, TimeUnit.SECONDS))
+
+    // Process-death window: claimed for send but not yet accepted — still durable.
+    val midFlightRaw = storage.get(midFlight.storageKey())!!
+    val midFlightItems = JSONArray(midFlightRaw)
+    assertEquals(1, midFlightItems.length())
+    assertEquals("d-crash", midFlightItems.getJSONObject(0).getString("deliveryId"))
+
+    // Snapshot mid-flight state, then let the in-process flush finish so the
+    // process-wide flushInFlight flag clears (a real crash starts a new process).
+    val snapshot = InMemoryAckQueueStore()
+    snapshot.set(midFlight.storageKey(), midFlightRaw)
+    allowSend.countDown()
+    assertTrue(flushDone.await(5, TimeUnit.SECONDS))
+
+    transport.nextResponse = HttpResponse(statusCode = 200, body = "{}")
+    val restarted = AckQueue(
+      apiBaseUrl = "https://api.example.com",
+      store = snapshot,
+      transport = transport,
+      clock = { 1_000_000L },
+    )
+    restarted.flush()
+    assertEquals(1, transport.requests.size)
+    assertEquals("/deliveries/d-crash/delivered", transport.requests.single().path)
+    assertEquals("[]", snapshot.get(restarted.storageKey()))
+  }
+
   private class InMemoryAckQueueStore : AckQueueStore {
     private val map = mutableMapOf<String, String>()
 
@@ -219,6 +391,13 @@ class AckQueueTest {
     override fun execute(request: HttpRequest): HttpResponse {
       requests += request
       return nextResponse ?: error("No response configured")
+    }
+  }
+
+  private class RecordingFlushScheduler : AckFlushScheduler {
+    val scheduleCount = AtomicInteger(0)
+    override fun schedule() {
+      scheduleCount.incrementAndGet()
     }
   }
 }

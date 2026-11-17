@@ -12,6 +12,7 @@ import com.google.firebase.messaging.RemoteMessage
  * Display and ACK enqueue work from [SdkConfigStore] so they succeed even when the process
  * was started by FCM without a prior foreground [com.comraid.android.ComRaid.configure] call
  * in this process lifetime (configure must have run at least once previously to persist config).
+ * React Native hosts get the same behaviour through this native service (ADR 0014).
  */
 open class ComraidMessagingService : FirebaseMessagingService() {
   override fun onNewToken(token: String) {
@@ -25,22 +26,12 @@ open class ComraidMessagingService : FirebaseMessagingService() {
       notificationBody = message.notification?.body,
     )
     val helpers = BackgroundAckHelpers.from(this) ?: return
-    helpers.queue.enqueueFromPayload(AckKind.DELIVERED, data)
-    helpers.queue.flush()
-
-    // Delivered ≠ opened: never auto-ACK opened on receive (ADR 0006).
-    ComRaid.notifyMessageReceived(data, appInForeground = AppForeground.isInForeground(this))
-
-    val displayForeground = helpers.configuration.displayForegroundNotifications
-    val shouldDisplay = RemoteDisplayPolicy.shouldAutoDisplay(
+    RemoteMessageReceive.handle(
+      context = this,
+      helpers = helpers,
       data = data,
       hasFcmNotificationBlock = message.notification != null,
       appInForeground = AppForeground.isInForeground(this),
-      displayForegroundNotifications = displayForeground,
     )
-    if (shouldDisplay) {
-      NotificationChannels.ensureDefault(this, helpers.configuration)
-      RemoteNotificationDisplay.show(this, helpers.configuration, data)
-    }
   }
 }

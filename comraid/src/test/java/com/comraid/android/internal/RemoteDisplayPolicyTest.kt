@@ -90,6 +90,18 @@ class RemoteDisplayPolicyTest {
   }
 
   @Test
+  fun background_data_message_alert_is_sdk_drawn() {
+    assertTrue(
+      RemoteDisplayPolicy.shouldAutoDisplay(
+        data = alertData,
+        hasFcmNotificationBlock = false,
+        appInForeground = false,
+        displayForegroundNotifications = true,
+      ),
+    )
+  }
+
+  @Test
   fun non_data_only_actions_still_sdk_drawn_in_background() {
     assertTrue(
       RemoteDisplayPolicy.shouldAutoDisplay(
@@ -97,6 +109,19 @@ class RemoteDisplayPolicyTest {
         hasFcmNotificationBlock = false,
         appInForeground = false,
         displayForegroundNotifications = true,
+      ),
+    )
+  }
+
+  @Test
+  fun background_opt_out_still_shows_when_app_not_foreground() {
+    // displayForegroundNotifications only gates the foreground path.
+    assertTrue(
+      RemoteDisplayPolicy.shouldAutoDisplay(
+        data = alertData,
+        hasFcmNotificationBlock = false,
+        appInForeground = false,
+        displayForegroundNotifications = false,
       ),
     )
   }

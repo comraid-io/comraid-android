@@ -4,12 +4,14 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
 import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
+import androidx.security.crypto.MasterKeys
 
 internal interface SubscriptionStore {
   val subscriptionId: String?
   val credential: String?
+  val externalUserId: String?
   fun save(subscriptionId: String, credential: String?)
+  fun setExternalUserId(externalUserId: String?)
   fun clear()
 }
 
@@ -22,12 +24,26 @@ internal class SharedPreferencesSubscriptionStore(context: Context) : Subscripti
   override val credential: String?
     get() = preferences.getString(KEY_CREDENTIAL, null)
 
+  override val externalUserId: String?
+    get() = preferences.getString(KEY_EXTERNAL_USER_ID, null)
+
   @Synchronized
   override fun save(subscriptionId: String, credential: String?) {
     preferences.edit {
       putString(KEY_ID, subscriptionId)
       if (credential != null) {
         putString(KEY_CREDENTIAL, credential)
+      }
+    }
+  }
+
+  @Synchronized
+  override fun setExternalUserId(externalUserId: String?) {
+    preferences.edit {
+      if (externalUserId == null) {
+        remove(KEY_EXTERNAL_USER_ID)
+      } else {
+        putString(KEY_EXTERNAL_USER_ID, externalUserId)
       }
     }
   }
@@ -40,16 +56,16 @@ internal class SharedPreferencesSubscriptionStore(context: Context) : Subscripti
   private companion object {
     const val KEY_ID = "subscription_id"
     const val KEY_CREDENTIAL = "subscription_credential"
+    const val KEY_EXTERNAL_USER_ID = "external_user_id"
     const val FILE_NAME = "comraid.subscription.secure"
 
     fun createSecurePreferences(context: Context): SharedPreferences {
-      val masterKey = MasterKey.Builder(context)
-        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-        .build()
+      // security-crypto 1.0.0 (stable). MasterKey lives only in 1.1.0-alpha*.
+      val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
       return EncryptedSharedPreferences.create(
-        context,
         FILE_NAME,
-        masterKey,
+        masterKeyAlias,
+        context,
         EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
         EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
       )

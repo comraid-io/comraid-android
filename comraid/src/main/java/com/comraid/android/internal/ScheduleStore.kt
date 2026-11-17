@@ -1,7 +1,6 @@
 package com.comraid.android.internal
 
 import android.content.Context
-import androidx.core.content.edit
 import com.comraid.android.ComRaidNotification
 import com.comraid.android.ComRaidScheduleRequest
 import com.comraid.android.FallbackPolicy
@@ -9,8 +8,8 @@ import com.comraid.android.SchedulePrecision
 import org.json.JSONArray
 import org.json.JSONObject
 
-internal class ScheduleStore(context: Context) {
-  private val preferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+internal class ScheduleStore(private val blob: JsonBlobStore) {
+  constructor(context: Context) : this(PrefsJsonBlobStore(context, PREFS_NAME, KEY))
 
   @Synchronized
   fun put(request: ComRaidScheduleRequest) {
@@ -26,7 +25,7 @@ internal class ScheduleStore(context: Context) {
 
   @Synchronized
   fun all(): List<ComRaidScheduleRequest> {
-    val raw = preferences.getString(KEY, null) ?: return emptyList()
+    val raw = blob.read() ?: return emptyList()
     return runCatching {
       val array = JSONArray(raw)
       (0 until array.length()).map { decode(array.getJSONObject(it)) }
@@ -36,7 +35,7 @@ internal class ScheduleStore(context: Context) {
   private fun write(requests: Collection<ComRaidScheduleRequest>) {
     val array = JSONArray()
     requests.forEach { array.put(encode(it)) }
-    preferences.edit { putString(KEY, array.toString()) }
+    blob.write(array.toString())
   }
 
   private fun encode(request: ComRaidScheduleRequest) = JSONObject().apply {

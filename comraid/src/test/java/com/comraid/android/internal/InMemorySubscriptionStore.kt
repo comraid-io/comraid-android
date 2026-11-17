@@ -5,6 +5,8 @@ internal class InMemorySubscriptionStore : SubscriptionStore {
     private set
   override var credential: String? = null
     private set
+  override var externalUserId: String? = null
+    private set
 
   override fun save(subscriptionId: String, credential: String?) {
     this.subscriptionId = subscriptionId
@@ -13,8 +15,13 @@ internal class InMemorySubscriptionStore : SubscriptionStore {
     }
   }
 
+  override fun setExternalUserId(externalUserId: String?) {
+    this.externalUserId = externalUserId
+  }
+
   override fun clear() {
     subscriptionId = null
     credential = null
+    externalUserId = null
   }
 }
