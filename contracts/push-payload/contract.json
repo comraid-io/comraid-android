@@ -1,0 +1,189 @@
+{
+  "version": 1,
+  "reserved_prefix": "cr_",
+  "reservation_rule": "Any data key with the cr_ prefix is reserved. Only ComRaid writes Reserved keys. The API rejects caller-supplied cr_ keys in Message create, Draft save, and Test send; pushsend assemble also drops caller Attribution keys before the Provider adapters write.",
+  "fcm_covers": "android_only",
+  "ios_endpoints": "apns_only",
+  "notes": {
+    "fcm_covers": "FCM Push payloads cover Android Endpoints only. iOS Endpoints are APNs-only (the iOS SDK registers APNs tokens only). The APNs block the FCM builder still attaches is outside this contract.",
+    "fcm_only_hints": "cr_priority and cr_android_channel_id are FCM-only, as intended. They never appear on APNs alert or APNs data-only payloads."
+  },
+  "keys": [
+    {
+      "name": "cr_title",
+      "kind": "presentation_hint",
+      "meaning": "Notification title for SDK presentation and receive events.",
+      "encoding": "text",
+      "presence": {
+        "fcm_data": "always",
+        "apns_alert": "when actions",
+        "apns_data_only": "always"
+      }
+    },
+    {
+      "name": "cr_body",
+      "kind": "presentation_hint",
+      "meaning": "Notification body for SDK presentation and receive events.",
+      "encoding": "text",
+      "presence": {
+        "fcm_data": "always",
+        "apns_alert": "when actions",
+        "apns_data_only": "always"
+      }
+    },
+    {
+      "name": "cr_data_only",
+      "kind": "presentation_hint",
+      "meaning": "Marks a Data-only Notification so SDKs skip system-tray presentation until presentNotification.",
+      "encoding": "\"true\"",
+      "presence": {
+        "fcm_data": "when Data-only",
+        "apns_alert": "never",
+        "apns_data_only": "always"
+      }
+    },
+    {
+      "name": "cr_image_url",
+      "kind": "presentation_hint",
+      "meaning": "Image URL shown with the Notification.",
+      "encoding": "URL",
+      "presence": {
+        "fcm_data": "when image",
+        "apns_alert": "when image",
+        "apns_data_only": "when image"
+      }
+    },
+    {
+      "name": "cr_deep_link",
+      "kind": "presentation_hint",
+      "meaning": "Deep link opened when the Notification is tapped.",
+      "encoding": "URL",
+      "presence": {
+        "fcm_data": "when deep link",
+        "apns_alert": "when deep link",
+        "apns_data_only": "when deep link"
+      }
+    },
+    {
+      "name": "cr_actions",
+      "kind": "presentation_hint",
+      "meaning": "Action buttons for the Notification.",
+      "encoding": "JSON array as a string",
+      "presence": {
+        "fcm_data": "when actions",
+        "apns_alert": "when actions",
+        "apns_data_only": "when actions"
+      }
+    },
+    {
+      "name": "cr_sound",
+      "kind": "presentation_hint",
+      "meaning": "Sound name. On APNs alert, sound is written to aps.sound instead (default \"default\" when blank).",
+      "encoding": "sound name",
+      "presence": {
+        "fcm_data": "when sound",
+        "apns_alert": "never",
+        "apns_data_only": "when sound"
+      }
+    },
+    {
+      "name": "cr_subtitle",
+      "kind": "presentation_hint",
+      "meaning": "Subtitle text. On APNs alert, subtitle is written to aps.alert.subtitle instead.",
+      "encoding": "text",
+      "presence": {
+        "fcm_data": "when subtitle",
+        "apns_alert": "never",
+        "apns_data_only": "when subtitle"
+      }
+    },
+    {
+      "name": "cr_badge",
+      "kind": "presentation_hint",
+      "meaning": "App badge count. On APNs alert, badge is written to aps.badge as an integer instead.",
+      "encoding": "decimal integer as a string",
+      "presence": {
+        "fcm_data": "when badge",
+        "apns_alert": "never",
+        "apns_data_only": "when badge"
+      }
+    },
+    {
+      "name": "cr_thread_id",
+      "kind": "presentation_hint",
+      "meaning": "Thread / grouping id. On APNs alert, thread is written to aps.thread-id instead.",
+      "encoding": "text",
+      "presence": {
+        "fcm_data": "when thread",
+        "apns_alert": "never",
+        "apns_data_only": "when thread"
+      }
+    },
+    {
+      "name": "cr_android_channel_id",
+      "kind": "presentation_hint",
+      "meaning": "Android Category channel id for SDK-drawn trays. FCM-only; never present on APNs.",
+      "encoding": "Category channel id",
+      "presence": {
+        "fcm_data": "when channel set",
+        "apns_alert": "never",
+        "apns_data_only": "never"
+      }
+    },
+    {
+      "name": "cr_priority",
+      "kind": "presentation_hint",
+      "meaning": "Android delivery priority hint. Present only when priority is normal; absent means high. FCM-only; never present on APNs.",
+      "encoding": "\"normal\" only; absent means high",
+      "presence": {
+        "fcm_data": "when priority is normal",
+        "apns_alert": "never",
+        "apns_data_only": "never"
+      }
+    },
+    {
+      "name": "cr_message_id",
+      "kind": "attribution_key",
+      "meaning": "Message id for Delivery attribution.",
+      "encoding": "UUID",
+      "presence": {
+        "fcm_data": "when Delivery",
+        "apns_alert": "when Delivery",
+        "apns_data_only": "when Delivery"
+      }
+    },
+    {
+      "name": "cr_delivery_id",
+      "kind": "attribution_key",
+      "meaning": "Delivery id for acks and open tracking.",
+      "encoding": "UUID",
+      "presence": {
+        "fcm_data": "when Delivery",
+        "apns_alert": "when Delivery",
+        "apns_data_only": "when Delivery"
+      }
+    },
+    {
+      "name": "cr_message_recipient_id",
+      "kind": "attribution_key",
+      "meaning": "Message recipient id when the Delivery has one.",
+      "encoding": "UUID",
+      "presence": {
+        "fcm_data": "when Delivery with a message recipient",
+        "apns_alert": "when Delivery with a message recipient",
+        "apns_data_only": "when Delivery with a message recipient"
+      }
+    },
+    {
+      "name": "cr_attribution_token",
+      "kind": "attribution_key",
+      "meaning": "Opaque token required to acknowledge delivered or opened.",
+      "encoding": "opaque string",
+      "presence": {
+        "fcm_data": "when Delivery with a token",
+        "apns_alert": "when Delivery with a token",
+        "apns_data_only": "when Delivery with a token"
+      }
+    }
+  ]
+}

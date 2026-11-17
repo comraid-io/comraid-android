@@ -1,0 +1,68 @@
+{
+  "content": {
+    "provider": "apns",
+    "title": "Hi",
+    "body": "There",
+    "data": {},
+    "push": {
+      "image_url": "https://cdn.example.com/a.png",
+      "deep_link": "app://invite/1",
+      "data_only": false,
+      "actions": [
+        {
+          "id": "accept",
+          "text": "Accept"
+        }
+      ]
+    },
+    "attribution": {
+      "message_id": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+      "delivery_id": "11111111-2222-4333-8444-555555555555",
+      "message_recipient_id": "99999999-8888-4777-8666-555555555555",
+      "attribution_token": "cr-attr-token-fixed-001"
+    }
+  },
+  "pushPayload": {
+    "aps": {
+      "alert": {
+        "title": "Hi",
+        "body": "There"
+      },
+      "sound": "default",
+      "category": "comraid.actions",
+      "mutable-content": 1
+    },
+    "cr_image_url": "https://cdn.example.com/a.png",
+    "cr_deep_link": "app://invite/1",
+    "cr_title": "Hi",
+    "cr_body": "There",
+    "cr_actions": "[{\"id\":\"accept\",\"text\":\"Accept\"}]",
+    "cr_message_id": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+    "cr_delivery_id": "11111111-2222-4333-8444-555555555555",
+    "cr_message_recipient_id": "99999999-8888-4777-8666-555555555555",
+    "cr_attribution_token": "cr-attr-token-fixed-001"
+  },
+  "expectedEvent": {
+    "messageId": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+    "deliveryId": "11111111-2222-4333-8444-555555555555",
+    "attributionToken": "cr-attr-token-fixed-001",
+    "title": "Hi",
+    "body": "There",
+    "data": {},
+    "deepLink": "app://invite/1",
+    "actions": [
+      {
+        "id": "accept",
+        "text": "Accept"
+      }
+    ],
+    "actionId": null,
+    "imageUrl": "https://cdn.example.com/a.png",
+    "subtitle": null,
+    "sound": "default",
+    "badge": null,
+    "threadId": null,
+    "androidChannelId": null,
+    "priority": "high"
+  }
+}

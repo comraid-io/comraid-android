@@ -1,0 +1,57 @@
+{
+  "content": {
+    "provider": "fcm",
+    "title": "Rematch?",
+    "body": "Play again",
+    "android_channel_id": "general",
+    "data": {},
+    "push": {
+      "image_url": "https://cdn.example.com/rematch.png",
+      "deep_link": "app://games/9",
+      "data_only": true,
+      "actions": [
+        {
+          "id": "accept",
+          "text": "Accept"
+        }
+      ]
+    }
+  },
+  "pushPayload": {
+    "data": {
+      "cr_title": "Rematch?",
+      "cr_body": "Play again",
+      "cr_data_only": "true",
+      "cr_image_url": "https://cdn.example.com/rematch.png",
+      "cr_deep_link": "app://games/9",
+      "cr_android_channel_id": "general",
+      "cr_actions": "[{\"id\":\"accept\",\"text\":\"Accept\"}]"
+    },
+    "android": {
+      "priority": "high"
+    }
+  },
+  "expectedEvent": {
+    "messageId": null,
+    "deliveryId": null,
+    "attributionToken": null,
+    "title": "Rematch?",
+    "body": "Play again",
+    "data": {},
+    "deepLink": "app://games/9",
+    "actions": [
+      {
+        "id": "accept",
+        "text": "Accept"
+      }
+    ],
+    "actionId": null,
+    "imageUrl": "https://cdn.example.com/rematch.png",
+    "subtitle": null,
+    "sound": null,
+    "badge": null,
+    "threadId": null,
+    "androidChannelId": "general",
+    "priority": "high"
+  }
+}

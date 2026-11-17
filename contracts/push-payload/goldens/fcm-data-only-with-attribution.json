@@ -1,0 +1,67 @@
+{
+  "content": {
+    "provider": "fcm",
+    "title": "Rematch?",
+    "body": "Play again",
+    "android_channel_id": "general",
+    "data": {},
+    "push": {
+      "image_url": "https://cdn.example.com/rematch.png",
+      "deep_link": "app://games/9",
+      "data_only": true,
+      "actions": [
+        {
+          "id": "accept",
+          "text": "Accept"
+        }
+      ]
+    },
+    "attribution": {
+      "message_id": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+      "delivery_id": "11111111-2222-4333-8444-555555555555",
+      "message_recipient_id": "99999999-8888-4777-8666-555555555555",
+      "attribution_token": "cr-attr-token-fixed-001"
+    }
+  },
+  "pushPayload": {
+    "data": {
+      "cr_title": "Rematch?",
+      "cr_body": "Play again",
+      "cr_data_only": "true",
+      "cr_image_url": "https://cdn.example.com/rematch.png",
+      "cr_deep_link": "app://games/9",
+      "cr_android_channel_id": "general",
+      "cr_actions": "[{\"id\":\"accept\",\"text\":\"Accept\"}]",
+      "cr_message_id": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+      "cr_delivery_id": "11111111-2222-4333-8444-555555555555",
+      "cr_message_recipient_id": "99999999-8888-4777-8666-555555555555",
+      "cr_attribution_token": "cr-attr-token-fixed-001"
+    },
+    "android": {
+      "priority": "high"
+    }
+  },
+  "expectedEvent": {
+    "messageId": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+    "deliveryId": "11111111-2222-4333-8444-555555555555",
+    "attributionToken": "cr-attr-token-fixed-001",
+    "title": "Rematch?",
+    "body": "Play again",
+    "data": {},
+    "deepLink": "app://games/9",
+    "actions": [
+      {
+        "id": "accept",
+        "text": "Accept"
+      }
+    ],
+    "actionId": null,
+    "imageUrl": "https://cdn.example.com/rematch.png",
+    "subtitle": null,
+    "sound": null,
+    "badge": null,
+    "threadId": null,
+    "androidChannelId": "general",
+    "priority": "high"
+  }
+}
