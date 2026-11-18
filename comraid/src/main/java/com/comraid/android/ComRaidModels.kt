@@ -21,6 +21,14 @@ data class ComRaidConfiguration(
   }
 }
 
+/** A Live activity that is showing on this device as an ongoing live update. */
+data class ComRaidLiveActivity(
+  /** Your own activity id, the same one used in the ComRaid API. */
+  val id: String,
+  /** The activity type given when it was started, for example `delivery`. */
+  val type: String,
+)
+
 data class ComRaidNotification(
   val id: String,
   val title: String,

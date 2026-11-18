@@ -21,6 +21,9 @@ import com.comraid.android.internal.ComraidScheduler
 import com.comraid.android.internal.DeviceInfoProvider
 import com.comraid.android.internal.FcmTokenProvider
 import com.comraid.android.internal.HttpTransport
+import com.comraid.android.internal.LiveUpdateDismissal
+import com.comraid.android.internal.LiveUpdateNotifier
+import com.comraid.android.internal.LiveUpdateReports
 import com.comraid.android.internal.MobileApiClient
 import com.comraid.android.internal.NotificationChannels
 import com.comraid.android.internal.NotificationScheduler
@@ -123,8 +126,10 @@ object ComRaid {
     scheduler: NotificationScheduler? = null,
     deviceInfoProvider: DeviceInfoProvider = DeviceInfoProvider { DeviceProperties() },
     clock: () -> Long = { System.currentTimeMillis() },
+    context: Context? = null,
   ) {
     validateConfiguration(configuration)
+    applicationContext = context?.applicationContext
     val api = MobileApiClient(configuration.appId.trim(), transport)
     val ackQueue = AckQueue(
       apiBaseUrl = configuration.apiBaseUrl,
@@ -484,6 +489,31 @@ object ComRaid {
     }
     // Fresh Subscription after Logout; keep sync semantics of logout().
     registerBlockingInternal()
+  }
+
+  /**
+   * Live activities showing on this device as ongoing live updates (started by your server through the
+   * ComRaid API). Empty before `configure`. A finished activity is not listed.
+   */
+  fun liveActivities(): List<ComRaidLiveActivity> {
+    val context = applicationContext ?: return emptyList()
+    return LiveUpdateNotifier.active(context)
+  }
+
+  /**
+   * End a showing Live activity from the app. It disappears at once and stays off this device (later
+   * updates for it are ignored); ComRaid is told it ended here, in the background, so the server stops
+   * sending to this device. Returns false when it is not showing. The activity itself goes on for the
+   * Contact's other devices until your server ends it.
+   */
+  fun endLiveActivity(activityId: String): Boolean {
+    val context = applicationContext ?: return false
+    if (LiveUpdateNotifier.active(context).none { it.id == activityId }) return false
+    LiveUpdateNotifier.cancel(context, activityId)
+    LiveUpdateDismissal.remember(context, activityId)
+    // WorkManager retries it until it gets through, so it does not depend on the SDK runtime being up.
+    runCatching { LiveUpdateReports.schedule(context, activityId, "ended") }
+    return true
   }
 
   fun optOut() {

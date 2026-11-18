@@ -1,12 +1,13 @@
 {
-  "version": 1,
+  "version": 2,
   "reserved_prefix": "cr_",
   "reservation_rule": "Any data key with the cr_ prefix is reserved. Only ComRaid writes Reserved keys. The API rejects caller-supplied cr_ keys in Message create, Draft save, and Test send; pushsend assemble also drops caller Attribution keys before the Provider adapters write.",
   "fcm_covers": "android_only",
   "ios_endpoints": "apns_only",
   "notes": {
     "fcm_covers": "FCM Push payloads cover Android Endpoints only. iOS Endpoints are APNs-only (the iOS SDK registers APNs tokens only). The APNs block the FCM builder still attaches is outside this contract.",
-    "fcm_only_hints": "cr_priority and cr_android_channel_id are FCM-only, as intended. They never appear on APNs alert or APNs data-only payloads."
+    "fcm_only_hints": "cr_priority and cr_android_channel_id are FCM-only, as intended. They never appear on APNs alert or APNs data-only payloads.",
+    "live_activity": "Live activity keys ride on an FCM data-only message and are read by the Android SDK only. iOS Live Activities use Apple's own liveactivity push (aps.content-state), which carries no cr_ keys."
   },
   "keys": [
     {
@@ -183,6 +184,83 @@
         "fcm_data": "when Delivery with a token",
         "apns_alert": "when Delivery with a token",
         "apns_data_only": "when Delivery with a token"
+      }
+    },
+    {
+      "name": "cr_activity_id",
+      "kind": "live_activity",
+      "meaning": "Developer-chosen id of the Live activity this data message belongs to.",
+      "encoding": "text",
+      "presence": {
+        "fcm_data": "when Live activity",
+        "apns_alert": "never",
+        "apns_data_only": "never"
+      }
+    },
+    {
+      "name": "cr_activity_type",
+      "kind": "live_activity",
+      "meaning": "Developer-chosen type of the Live activity, for example delivery.",
+      "encoding": "text",
+      "presence": {
+        "fcm_data": "when Live activity",
+        "apns_alert": "never",
+        "apns_data_only": "never"
+      }
+    },
+    {
+      "name": "cr_activity_op",
+      "kind": "live_activity",
+      "meaning": "What to do with the Live activity: start, update or end.",
+      "encoding": "start | update | end",
+      "presence": {
+        "fcm_data": "when Live activity",
+        "apns_alert": "never",
+        "apns_data_only": "never"
+      }
+    },
+    {
+      "name": "cr_activity_title",
+      "kind": "live_activity",
+      "meaning": "Title the Android SDK draws in the ongoing live update.",
+      "encoding": "text",
+      "presence": {
+        "fcm_data": "when Live activity",
+        "apns_alert": "never",
+        "apns_data_only": "never"
+      }
+    },
+    {
+      "name": "cr_activity_body",
+      "kind": "live_activity",
+      "meaning": "Body the Android SDK draws in the ongoing live update.",
+      "encoding": "text",
+      "presence": {
+        "fcm_data": "when Live activity",
+        "apns_alert": "never",
+        "apns_data_only": "never"
+      }
+    },
+    {
+      "name": "cr_activity_progress",
+      "kind": "live_activity",
+      "meaning": "Progress from 0 to 100 for the progress style.",
+      "encoding": "integer as a string",
+      "presence": {
+        "fcm_data": "when progress",
+        "apns_alert": "never",
+        "apns_data_only": "never"
+      }
+    },
+    {
+      "name": "cr_activity_status_text",
+      "kind": "live_activity",
+      "meaning": "Short status text shown with the progress.",
+      "encoding": "text",
+      "presence": {
+        "fcm_data": "when status text",
+        "apns_alert": "never",
+        "apns_data_only": "never"
       }
     }
   ]

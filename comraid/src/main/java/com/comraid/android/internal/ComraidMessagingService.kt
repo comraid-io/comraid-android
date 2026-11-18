@@ -20,16 +20,11 @@ open class ComraidMessagingService : FirebaseMessagingService() {
   }
 
   override fun onMessageReceived(message: RemoteMessage) {
-    val data = PushPayload.fromFcmData(
+    FcmReceive.handle(
+      context = this,
       data = message.data,
       notificationTitle = message.notification?.title,
       notificationBody = message.notification?.body,
-    )
-    val helpers = BackgroundAckHelpers.from(this) ?: return
-    RemoteMessageReceive.handle(
-      context = this,
-      helpers = helpers,
-      data = data,
       hasFcmNotificationBlock = message.notification != null,
       appInForeground = AppForeground.isInForeground(this),
     )

@@ -275,6 +275,25 @@ ComRaid.acknowledgeOpened(deliveryId, attributionToken, actionId = "accept")
 ComRaid.flushAcks()
 ```
 
+### Live updates
+
+A Live activity puts one thing in the notification shade that changes for hours: a delivery, a ride, a score. On Android it is a **live update**: an ongoing notification that the SDK draws and updates in place. Your server starts and updates it through the ComRaid API (`POST /activities`, `POST /activities/{activity_id}/updates`); there is nothing to build in your app and no method to call to show it.
+
+- **Receiving:** live updates arrive as FCM data messages through `ComraidMessagingService`. If you extend it or use your own `FirebaseMessagingService`, call `super.onMessageReceived(message)` so the SDK sees them. They are never delivered to your receive listeners as ordinary messages.
+- **Drawing:** one ongoing notification per `activity_id`, on the SDK's own **Live updates** channel (low importance, so updates do not ring). It shows the title, body, a progress bar when `progress` is sent, and `status_text`. Tapping it opens your app.
+- **Android 16 and later:** it uses the platform progress style, shows the status text as the status chip, and asks to be promoted to a live update. Promotion is up to the system and the user's per-app setting. Below Android 16 it is a plain ongoing notification with a progress bar.
+- **Permission:** it needs the same notification permission as any notification (`POST_NOTIFICATIONS` on Android 13 and later). With it denied or notifications turned off, nothing is drawn.
+- **Ending:** when your server ends the activity, a final title and body (if sent) stay as a normal notification the user can clear, gone after 10 minutes; with none, the notification is removed. An ongoing live update also clears itself after 8 hours, the longest an activity can run.
+- **Swiping it away:** the SDK stops drawing that activity on this device (later updates for it are ignored) and tells ComRaid, so the server stops sending updates to this device. The activity goes on for the Contact's other devices.
+
+#### `liveActivities(): List<ComRaidLiveActivity>`
+
+The Live activities showing on this device as ongoing live updates, as `ComRaidLiveActivity(id, type)`. A finished activity (only its final state is left) is not listed. Empty before `configure`.
+
+#### `endLiveActivity(activityId: String): Boolean`
+
+End a showing Live activity from your app. It disappears at once and stays off this device; ComRaid is told it ended here, in the background. Returns `false` when it is not showing. The activity itself goes on for the Contact's other devices until your server ends it.
+
 ### Local schedule and timers
 
 Exact alarms are opt-in: the host must declare the applicable exact-alarm permission, satisfy store policy, and obtain system access. ComRaid defaults to inexact alarms and never adds an exact-alarm permission to the library manifest. Boot restoration needs `ComRaid.configure` from `Application.onCreate` before the boot receiver can restore schedules.

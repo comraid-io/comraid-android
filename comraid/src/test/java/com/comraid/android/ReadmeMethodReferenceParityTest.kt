@@ -46,6 +46,8 @@ class ReadmeMethodReferenceParityTest {
       "timers",
       "cancel",
       "pendingSchedules",
+      "liveActivities",
+      "endLiveActivity",
     )
     val missing = methods.filterNot { method ->
       readme.contains("### `$method") || readme.contains("### `ComRaid.$method")
