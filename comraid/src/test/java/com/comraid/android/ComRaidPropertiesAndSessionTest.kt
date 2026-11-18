@@ -110,7 +110,7 @@ class ComRaidPropertiesAndSessionTest {
     nowMs += 30 * 60 * 1000L + 1
     ComRaid.handleAppForegroundForTests()
 
-    val request = transport.awaitRequests(1).single()
+    val request = awaitSessionPost()
     assertEquals("POST", request.method)
     assertEquals("/mobile/subscriptions/sub-1/session", request.path)
     val body = JSONObject(request.body!!)
@@ -129,7 +129,7 @@ class ComRaidPropertiesAndSessionTest {
     nowMs += 5 * 60 * 1000L
     ComRaid.handleAppForegroundForTests()
 
-    assertTrue(transport.requests.isEmpty())
+    assertTrue(sessionPosts().isEmpty())
   }
 
   @Test
@@ -143,7 +143,7 @@ class ComRaidPropertiesAndSessionTest {
 
     ComRaid.handleAppForegroundForTests()
 
-    assertTrue(transport.requests.isEmpty())
+    assertTrue(sessionPosts().isEmpty())
   }
 
   @Test
@@ -156,7 +156,7 @@ class ComRaidPropertiesAndSessionTest {
 
     ComRaid.handleAppForegroundForTests()
 
-    assertEquals("/mobile/subscriptions/sub-1/session", transport.awaitRequests(1).single().path)
+    assertEquals("/mobile/subscriptions/sub-1/session", awaitSessionPost().path)
   }
 
   @Test
@@ -168,17 +168,31 @@ class ComRaidPropertiesAndSessionTest {
     )
 
     ComRaid.handleAppForegroundForTests()
-    transport.awaitRequests(1)
+    awaitSessionPost()
     transport.requests.clear()
 
     nowMs += 5 * 60 * 1000L
     ComRaid.handleAppForegroundForTests()
-    assertTrue(transport.requests.isEmpty())
+    assertTrue(sessionPosts().isEmpty())
 
     nowMs += 25 * 60 * 1000L + 1
     ComRaid.handleAppForegroundForTests()
-    assertEquals("/mobile/subscriptions/sub-1/session", transport.awaitRequests(1).single().path)
+    assertEquals("/mobile/subscriptions/sub-1/session", awaitSessionPost().path)
   }
+
+  /** Wait for the (asynchronous) session POST; In-app fetches on the same foreground are ignored. */
+  private fun awaitSessionPost(timeoutMs: Long = 5_000): HttpRequest {
+    val deadline = System.currentTimeMillis() + timeoutMs
+    while (System.currentTimeMillis() < deadline) {
+      sessionPosts().firstOrNull()?.let { return it }
+      Thread.sleep(10)
+    }
+    throw AssertionError("no session POST was recorded")
+  }
+
+  /** Session POSTs only: each foreground also fetches In-app messages, which these tests do not cover. */
+  private fun sessionPosts(): List<HttpRequest> =
+    synchronized(transport.requests) { transport.requests.filter { it.path.endsWith("/session") } }
 
   private class RecordingTransport : HttpTransport {
     val requests: MutableList<HttpRequest> = java.util.Collections.synchronizedList(mutableListOf())

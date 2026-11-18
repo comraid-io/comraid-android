@@ -142,6 +142,27 @@ internal class MobileApiClient(
     }
   }
 
+  /**
+   * In-app messages this install may show now (GET /mobile/subscriptions/{id}/in-app-messages).
+   * The server decides eligibility (Segment, window, opt-out, already seen); the Subscription
+   * credential travels in a header because this is a GET.
+   */
+  fun listInAppMessages(subscriptionId: String, credential: String): List<FetchedInAppMessage> {
+    val response = transport.execute(
+      HttpRequest(
+        method = "GET",
+        path = "/mobile/subscriptions/$subscriptionId/in-app-messages",
+        headers = mapOf(
+          "X-ComRaid-App-Id" to appId,
+          "X-ComRaid-Subscription-Credential" to credential,
+        ),
+        body = null,
+      ),
+    )
+    requireSuccess(response, expected = setOf(200))
+    return parseInAppMessages(JSONObject(response.body).optJSONArray("messages"))
+  }
+
   private fun putDeviceFields(body: JSONObject, properties: DeviceProperties?) {
     if (properties == null) return
     properties.appVersion?.takeIf { it.isNotBlank() }?.let { body.put("app_version", it) }
