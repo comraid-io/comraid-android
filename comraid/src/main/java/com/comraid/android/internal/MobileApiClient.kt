@@ -99,6 +99,24 @@ internal class MobileApiClient(
     requireSuccess(response, expected = setOf(200))
   }
 
+  /**
+   * Report that a Live activity is over on this device
+   * (`POST /mobile/subscriptions/{id}/activities/{activity_id}/ended`). Returns the HTTP status so the
+   * caller can tell a final refusal from something worth retrying; 204 means recorded.
+   */
+  fun reportActivityEnded(
+    subscriptionId: String,
+    credential: String,
+    activityId: String,
+    reason: String,
+  ): Int {
+    val body = JSONObject().put("subscription_credential", credential).put("reason", reason)
+    return post(
+      "/mobile/subscriptions/$subscriptionId/activities/${android.net.Uri.encode(activityId)}/ended",
+      body,
+    ).statusCode
+  }
+
   fun session(
     subscriptionId: String,
     credential: String,
@@ -140,6 +158,27 @@ internal class MobileApiClient(
         )
       }
     }
+  }
+
+  /**
+   * In-app messages this install may show now (GET /mobile/subscriptions/{id}/in-app-messages).
+   * The server decides eligibility (Segment, window, opt-out, already seen); the Subscription
+   * credential travels in a header because this is a GET.
+   */
+  fun listInAppMessages(subscriptionId: String, credential: String): List<FetchedInAppMessage> {
+    val response = transport.execute(
+      HttpRequest(
+        method = "GET",
+        path = "/mobile/subscriptions/$subscriptionId/in-app-messages",
+        headers = mapOf(
+          "X-ComRaid-App-Id" to appId,
+          "X-ComRaid-Subscription-Credential" to credential,
+        ),
+        body = null,
+      ),
+    )
+    requireSuccess(response, expected = setOf(200))
+    return parseInAppMessages(JSONObject(response.body).optJSONArray("messages"))
   }
 
   private fun putDeviceFields(body: JSONObject, properties: DeviceProperties?) {
