@@ -50,6 +50,14 @@ internal object PushPayload {
     "cr_badge",
     "cr_thread_id",
     "cr_priority",
+    // Live activity keys (read by LiveUpdate, never shown as sender data).
+    "cr_activity_id",
+    "cr_activity_type",
+    "cr_activity_op",
+    "cr_activity_title",
+    "cr_activity_body",
+    "cr_activity_progress",
+    "cr_activity_status_text",
   )
 
   fun attribution(data: Map<String, String>?): DeliveryAttribution? {

@@ -99,6 +99,24 @@ internal class MobileApiClient(
     requireSuccess(response, expected = setOf(200))
   }
 
+  /**
+   * Report that a Live activity is over on this device
+   * (`POST /mobile/subscriptions/{id}/activities/{activity_id}/ended`). Returns the HTTP status so the
+   * caller can tell a final refusal from something worth retrying; 204 means recorded.
+   */
+  fun reportActivityEnded(
+    subscriptionId: String,
+    credential: String,
+    activityId: String,
+    reason: String,
+  ): Int {
+    val body = JSONObject().put("subscription_credential", credential).put("reason", reason)
+    return post(
+      "/mobile/subscriptions/$subscriptionId/activities/${android.net.Uri.encode(activityId)}/ended",
+      body,
+    ).statusCode
+  }
+
   fun session(
     subscriptionId: String,
     credential: String,

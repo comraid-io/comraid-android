@@ -58,6 +58,8 @@ class ReadmeMethodReferenceParityTest {
       "isInAppMessagesPaused",
       "optOutInApp",
       "optInInApp",
+      "liveActivities",
+      "endLiveActivity",
     )
     val missing = methods.filterNot { method ->
       readme.contains("### `$method") || readme.contains("### `ComRaid.$method")
