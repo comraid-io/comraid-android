@@ -8,6 +8,8 @@ import kotlin.math.pow
 internal enum class AckKind(val wire: String) {
   DELIVERED("delivered"),
   OPENED("opened"),
+  /** In-app messages only: the user dismissed the message. */
+  DISMISSED("dismissed"),
   ;
 
   companion object {

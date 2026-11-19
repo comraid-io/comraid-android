@@ -275,6 +275,76 @@ ComRaid.acknowledgeOpened(deliveryId, attributionToken, actionId = "accept")
 ComRaid.flushAcks()
 ```
 
+### In-app messages
+
+In-app messages are shown inside your app: a modal, a banner at the top or bottom, or a full-screen layout, with up to two buttons. They need no notification permission. The SDK fetches eligible messages every time the app comes to the foreground, shows at most one per foreground once an Activity is on screen, and reports impressions, clicks and dismissals for you. Each Contact sees a message once. You can opt a Contact out separately from push.
+
+You route deep links yourself: when a button is tapped the SDK reports the click and closes the message, and your listener receives the button (including its `deepLink`). The SDK never opens a link. To draw the message yourself, set a presenter.
+
+```kotlin
+ComRaid.addInAppMessageListener(object : InAppMessageListener {
+  override fun didClick(message: InAppMessage, button: InAppButton) {
+    button.deepLink?.let { router.open(it) }
+  }
+})
+```
+
+#### `setInAppMessagePresenter(presenter: InAppMessagePresenter?)`
+
+Draw In-app messages yourself. While a presenter is set the SDK draws nothing: `present(message, handle, triggers)` is called instead, and you report what happened through the handle. Pass `null` to return to the SDK layouts. May be called before `configure`.
+
+| Handle method | Meaning |
+|---------------|---------|
+| `impression()` | The message is on screen. Recorded once. |
+| `clicked(buttonId)` | The user tapped that button. Unknown ids are ignored. |
+| `dismissed()` | The user closed it. Recorded once. If a button was tapped first, the click is the outcome: listeners still see the message close, but no dismissal is recorded. |
+
+A Dashboard Test send reaches the presenter too (`message.isTest`); the handle makes no ACKs for it. If your presenter throws, the message is not consumed and is offered again later.
+
+#### `addInAppMessageListener(listener: InAppMessageListener)`
+
+Observe `willDisplay`, `didDisplay`, `willDismiss`, `didDismiss` and `didClick(message, button)`. A listener only observes: it cannot change or suppress a message. Every method has a no-op default.
+
+#### `removeInAppMessageListener(listener: InAppMessageListener)`
+
+Stop observing.
+
+#### `addTrigger(key: String, value: String)`
+
+Set a local trigger. Triggers stay on the device and are passed to your presenter. They do not yet decide which message is shown: ComRaid messages carry no trigger rules.
+
+#### `addTriggers(triggers: Map<String, String>)`
+
+Set several triggers at once.
+
+#### `removeTrigger(key: String)`
+
+Remove one trigger.
+
+#### `clearTriggers()`
+
+Remove all triggers.
+
+#### `getTriggers(): Map<String, String>`
+
+The triggers currently set.
+
+#### `setInAppMessagesPaused(paused: Boolean)`
+
+Pause or resume showing In-app messages on this device. A message waits while paused and shows after you resume.
+
+#### `isInAppMessagesPaused(): Boolean`
+
+Whether showing is paused.
+
+#### `optOutInApp()`
+
+Opt this Contact out of In-app messages. This is the `in_app` channel and is independent of push `optOut()`. Cached messages stop showing at once. Like `optOut()`, call it from a background thread.
+
+#### `optInInApp()`
+
+Opt this Contact back in. Call it from a background thread.
+
 ### Local schedule and timers
 
 Exact alarms are opt-in: the host must declare the applicable exact-alarm permission, satisfy store policy, and obtain system access. ComRaid defaults to inexact alarms and never adds an exact-alarm permission to the library manifest. Boot restoration needs `ComRaid.configure` from `Application.onCreate` before the boot receiver can restore schedules.
@@ -414,6 +484,10 @@ If a push names a category channel this device hasn't created yet, the SDK syncs
 | `SchedulePrecision` / `FallbackPolicy` | Exact vs inexact; fail vs fall back. |
 | `ComRaidCapabilities` | `notificationsEnabled`, `exactAlarmsAvailable`. |
 | `DeviceProperties` | Overrides for auto-collected Properties on register / token / session. |
+| `InAppMessage` | An In-app message: `id`, `layout`, `title`, `body`, `imageUrl`, `buttons`, display window (`startAtMillis`, `endAtMillis`) and `isTest`. |
+| `InAppButton` | `id`, `label` and optional `deepLink` (your app routes it). |
+| `InAppLayout` | `MODAL`, `BANNER_TOP`, `BANNER_BOTTOM`, `FULLSCREEN`. |
+| `InAppMessageHandle` / `InAppMessagePresenter` / `InAppMessageListener` | Report outcomes, draw messages yourself, observe messages. |
 
 ## Errors
 
