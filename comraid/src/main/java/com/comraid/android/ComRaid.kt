@@ -21,6 +21,9 @@ import com.comraid.android.internal.ComraidScheduler
 import com.comraid.android.internal.DeviceInfoProvider
 import com.comraid.android.internal.FcmTokenProvider
 import com.comraid.android.internal.HttpTransport
+import com.comraid.android.internal.LiveUpdateDismissal
+import com.comraid.android.internal.LiveUpdateNotifier
+import com.comraid.android.internal.LiveUpdateReports
 import com.comraid.android.internal.MobileApiClient
 import com.comraid.android.internal.NotificationChannels
 import com.comraid.android.internal.NotificationScheduler
@@ -29,6 +32,14 @@ import com.comraid.android.internal.RemoteNotificationDisplay
 import com.comraid.android.internal.ScheduleStore
 import com.comraid.android.internal.SdkConfigStore
 import com.comraid.android.internal.SdkExecutors
+import com.comraid.android.internal.AckQueueInAppSink
+import com.comraid.android.internal.DefaultInAppDisplay
+import com.comraid.android.internal.InAppActivityTracker
+import com.comraid.android.internal.InAppMessageManager
+import com.comraid.android.internal.inAppStateKey
+import com.comraid.android.internal.InMemoryJsonBlobStore
+import com.comraid.android.internal.JsonBlobStore
+import com.comraid.android.internal.PrefsJsonBlobStore
 import com.comraid.android.internal.SessionTracker
 import com.comraid.android.internal.SharedPreferencesAckQueueStore
 import com.comraid.android.internal.SharedPreferencesSubscriptionStore
@@ -69,6 +80,14 @@ object ComRaid {
   private val openedListeners = CopyOnWriteArrayList<RemoteMessageListener>()
   private val tokenRefreshListeners = CopyOnWriteArrayList<TokenRefreshListener>()
 
+  // In-app message registrations live here, not on the manager, so they apply even when the host
+  // registers a presenter, listener or trigger before configure(), and survive re-configuring.
+  @Volatile private var inAppPresenter: InAppMessagePresenter? = null
+  @Volatile private var inAppPaused = false
+  private val inAppListeners = CopyOnWriteArrayList<InAppMessageListener>()
+  private val inAppTriggers = java.util.concurrent.ConcurrentHashMap<String, String>()
+  private val inAppActivityTracker = InAppActivityTracker()
+
   fun configure(context: Context, configuration: ComRaidConfiguration) {
     validateConfiguration(configuration)
     val appContext = context.applicationContext
@@ -102,6 +121,20 @@ object ComRaid {
         externalUserId = store.externalUserId,
         deviceInfoProvider = AndroidDeviceInfoProvider(appContext),
         sessionTracker = SessionTracker(clock = { System.currentTimeMillis() }),
+        inApp = buildInAppManager(
+          api = api,
+          store = store,
+          ackQueue = ackQueue,
+          blobStore = PrefsJsonBlobStore(
+            appContext,
+            "comraid_in_app",
+            inAppStateKey(configuration.apiBaseUrl, configuration.appId),
+          ),
+          clock = { System.currentTimeMillis() },
+          runInBackground = { SdkExecutors.worker.execute(it) },
+          runOnMain = { SdkExecutors.postMain(it) },
+          flush = { ackQueue.flushAsync() },
+        ),
       )
     }
     registerProcessLifecycle(appContext)
@@ -123,8 +156,10 @@ object ComRaid {
     scheduler: NotificationScheduler? = null,
     deviceInfoProvider: DeviceInfoProvider = DeviceInfoProvider { DeviceProperties() },
     clock: () -> Long = { System.currentTimeMillis() },
+    context: Context? = null,
   ) {
     validateConfiguration(configuration)
+    applicationContext = context?.applicationContext
     val api = MobileApiClient(configuration.appId.trim(), transport)
     val ackQueue = AckQueue(
       apiBaseUrl = configuration.apiBaseUrl,
@@ -146,6 +181,17 @@ object ComRaid {
         externalUserId = subscriptionStore.externalUserId,
         deviceInfoProvider = deviceInfoProvider,
         sessionTracker = SessionTracker(clock = clock),
+        // Tests run In-app work inline and flush ACKs explicitly (flushAcks) for determinism.
+        inApp = buildInAppManager(
+          api = api,
+          store = subscriptionStore,
+          ackQueue = ackQueue,
+          blobStore = InMemoryJsonBlobStore(),
+          clock = clock,
+          runInBackground = { it() },
+          runOnMain = { it() },
+          flush = {},
+        ),
       )
     }
   }
@@ -164,6 +210,10 @@ object ComRaid {
       backgroundMessageListeners.clear()
       openedListeners.clear()
       tokenRefreshListeners.clear()
+      inAppPresenter = null
+      inAppPaused = false
+      inAppListeners.clear()
+      inAppTriggers.clear()
     }
   }
 
@@ -180,6 +230,16 @@ object ComRaid {
   /** Test seam: simulate process background without ProcessLifecycleOwner. */
   internal fun handleAppBackgroundForTests() {
     onAppBackground()
+  }
+
+  /** Test seam: an Activity came on screen (the SDK tracks this itself in production). */
+  internal fun handleActivityResumedForTests(activity: android.app.Activity) {
+    onActivityResumed(activity)
+  }
+
+  /** Test seam: an Activity left the screen. */
+  internal fun handleActivityPausedForTests(activity: android.app.Activity) {
+    onActivityPaused(activity)
   }
 
   /**
@@ -469,6 +529,8 @@ object ComRaid {
     val trimmed = externalUserId.trim()
     current.api.login(subscriptionId, credential, trimmed, jwt)
     current.subscriptionStore.setExternalUserId(trimmed)
+    // The Contact may change (an anonymous one merging into a known one): let the server decide again.
+    current.inApp.reset()
     synchronized(lock) {
       runtime = current.copy(externalUserId = trimmed)
     }
@@ -479,11 +541,38 @@ object ComRaid {
     val (subscriptionId, credential) = requireSubscription(current)
     current.api.logout(subscriptionId, credential)
     current.subscriptionStore.clear()
+    // The next user must not see, or acknowledge, the previous user's messages.
+    current.inApp.reset()
     synchronized(lock) {
       runtime = current.copy(externalUserId = null)
     }
     // Fresh Subscription after Logout; keep sync semantics of logout().
     registerBlockingInternal()
+  }
+
+  /**
+   * Live activities showing on this device as ongoing live updates (started by your server through the
+   * ComRaid API). Empty before `configure`. A finished activity is not listed.
+   */
+  fun liveActivities(): List<ComRaidLiveActivity> {
+    val context = applicationContext ?: return emptyList()
+    return LiveUpdateNotifier.active(context)
+  }
+
+  /**
+   * End a showing Live activity from the app. It disappears at once and stays off this device (later
+   * updates for it are ignored); ComRaid is told it ended here, in the background, so the server stops
+   * sending to this device. Returns false when it is not showing. The activity itself goes on for the
+   * Contact's other devices until your server ends it.
+   */
+  fun endLiveActivity(activityId: String): Boolean {
+    val context = applicationContext ?: return false
+    if (LiveUpdateNotifier.active(context).none { it.id == activityId }) return false
+    LiveUpdateNotifier.cancel(context, activityId)
+    LiveUpdateDismissal.remember(context, activityId)
+    // WorkManager retries it until it gets through, so it does not depend on the SDK runtime being up.
+    runCatching { LiveUpdateReports.schedule(context, activityId, "ended") }
+    return true
   }
 
   fun optOut() {
@@ -497,6 +586,79 @@ object ComRaid {
     val (subscriptionId, credential) = requireSubscription(current)
     current.api.optIn(subscriptionId, credential, channel = "push")
   }
+
+  /**
+   * Opt this Contact out of In-app messages (the `in_app` channel, independent of push).
+   * Cached messages stop showing immediately. Like [optOut], call it off the main thread.
+   */
+  fun optOutInApp() {
+    val current = requireRuntime()
+    val (subscriptionId, credential) = requireSubscription(current)
+    current.api.optOut(subscriptionId, credential, channel = "in_app")
+    current.inApp.clearLocalState()
+  }
+
+  /** Opt this Contact back in to In-app messages. Like [optOut], call it off the main thread. */
+  fun optInInApp() {
+    val current = requireRuntime()
+    val (subscriptionId, credential) = requireSubscription(current)
+    current.api.optIn(subscriptionId, credential, channel = "in_app")
+  }
+
+  /**
+   * Draw In-app messages yourself. While a presenter is set the SDK draws nothing: you receive
+   * the message and a handle, and report `impression()`, `clicked(buttonId)` and `dismissed()`.
+   * Pass null to go back to the SDK's layouts.
+   */
+  fun setInAppMessagePresenter(presenter: InAppMessagePresenter?) {
+    inAppPresenter = presenter
+    runtime?.inApp?.presenter = presenter
+  }
+
+  /** Observe In-app messages being displayed, clicked and dismissed. */
+  fun addInAppMessageListener(listener: InAppMessageListener) {
+    inAppListeners.addIfAbsent(listener)
+    runtime?.inApp?.addListener(listener)
+  }
+
+  fun removeInAppMessageListener(listener: InAppMessageListener) {
+    inAppListeners.remove(listener)
+    runtime?.inApp?.removeListener(listener)
+  }
+
+  /**
+   * Set a local trigger. Triggers stay on the device and are passed to your presenter; they do
+   * not decide which message shows.
+   */
+  fun addTrigger(key: String, value: String) {
+    inAppTriggers[key] = value
+    runtime?.inApp?.addTrigger(key, value)
+  }
+
+  fun addTriggers(triggers: Map<String, String>) {
+    inAppTriggers.putAll(triggers)
+    runtime?.inApp?.addTriggers(triggers)
+  }
+
+  fun removeTrigger(key: String) {
+    inAppTriggers.remove(key)
+    runtime?.inApp?.removeTrigger(key)
+  }
+
+  fun clearTriggers() {
+    inAppTriggers.clear()
+    runtime?.inApp?.clearTriggers()
+  }
+
+  fun getTriggers(): Map<String, String> = inAppTriggers.toMap()
+
+  /** Pause or resume showing In-app messages on this device. Messages wait while paused. */
+  fun setInAppMessagesPaused(paused: Boolean) {
+    inAppPaused = paused
+    runtime?.inApp?.paused = paused
+  }
+
+  fun isInAppMessagesPaused(): Boolean = inAppPaused
 
   /**
    * Override automatically collected Properties for subsequent register / token /
@@ -562,6 +724,11 @@ object ComRaid {
   /** Flush any durable ACK backlog (safe to call from Application.onCreate). */
   fun flushAcks() {
     runtime?.ackQueue?.flushAsync()
+  }
+
+  /** Test seam: flush the ACK queue on the calling thread so a test can assert on the requests. */
+  internal fun flushAcksForTests() {
+    runtime?.ackQueue?.flush()
   }
 
   fun schedule(request: ComRaidScheduleRequest): ComRaidScheduleResult {
@@ -799,8 +966,13 @@ object ComRaid {
         }
 
         override fun onActivityCreated(activity: android.app.Activity, savedInstanceState: android.os.Bundle?) = Unit
-        override fun onActivityResumed(activity: android.app.Activity) = Unit
-        override fun onActivityPaused(activity: android.app.Activity) = Unit
+        override fun onActivityResumed(activity: android.app.Activity) {
+          this@ComRaid.onActivityResumed(activity)
+        }
+
+        override fun onActivityPaused(activity: android.app.Activity) {
+          this@ComRaid.onActivityPaused(activity)
+        }
         override fun onActivitySaveInstanceState(activity: android.app.Activity, outState: android.os.Bundle) = Unit
         override fun onActivityDestroyed(activity: android.app.Activity) = Unit
       },
@@ -811,8 +983,19 @@ object ComRaid {
     runtime?.sessionTracker?.onBackground()
   }
 
+  private fun onActivityResumed(activity: android.app.Activity) {
+    inAppActivityTracker.resumed(activity)
+    runtime?.inApp?.onHostReady()
+  }
+
+  private fun onActivityPaused(activity: android.app.Activity) {
+    inAppActivityTracker.paused(activity)
+  }
+
   private fun onAppForeground(async: Boolean) {
     val current = runtime ?: return
+    // In-app messages are fetched on every foreground, independent of the session debounce below.
+    current.inApp.onForeground()
     if (!current.sessionTracker.shouldRecordSession()) return
     val subscriptionId = current.subscriptionStore.subscriptionId
     val credential = current.subscriptionStore.credential
@@ -846,7 +1029,42 @@ object ComRaid {
     val externalUserId: String?,
     val deviceInfoProvider: DeviceInfoProvider,
     val sessionTracker: SessionTracker,
+    val inApp: InAppMessageManager,
   )
+
+  /** Build the manager and replay registrations made before (or independent of) configure. */
+  private fun buildInAppManager(
+    api: MobileApiClient,
+    store: SubscriptionStore,
+    ackQueue: AckQueue,
+    blobStore: JsonBlobStore,
+    clock: () -> Long,
+    runInBackground: (() -> Unit) -> Unit,
+    runOnMain: (() -> Unit) -> Unit,
+    flush: () -> Unit,
+  ): InAppMessageManager {
+    val manager = InAppMessageManager(
+      fetcher = {
+        val id = store.subscriptionId
+        val credential = store.credential
+        if (id.isNullOrBlank() || credential.isNullOrBlank()) {
+          throw IllegalStateException("No registered Subscription")
+        }
+        api.listInAppMessages(id, credential)
+      },
+      acks = AckQueueInAppSink(ackQueue, clock, flush),
+      store = blobStore,
+      clock = clock,
+      runInBackground = runInBackground,
+      runOnMain = runOnMain,
+      display = DefaultInAppDisplay({ inAppActivityTracker.current() }),
+    )
+    manager.presenter = inAppPresenter
+    manager.paused = inAppPaused
+    manager.addTriggers(inAppTriggers)
+    inAppListeners.forEach { manager.addListener(it) }
+    return manager
+  }
 
   private class InMemoryAckQueueStoreForTests : AckQueueStore {
     private val map = mutableMapOf<String, String>()

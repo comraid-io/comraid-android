@@ -275,6 +275,95 @@ ComRaid.acknowledgeOpened(deliveryId, attributionToken, actionId = "accept")
 ComRaid.flushAcks()
 ```
 
+### In-app messages
+
+In-app messages are shown inside your app: a modal, a banner at the top or bottom, or a full-screen layout, with up to two buttons. They need no notification permission. The SDK fetches eligible messages every time the app comes to the foreground, shows at most one per foreground once an Activity is on screen, and reports impressions, clicks and dismissals for you. Each Contact sees a message once. You can opt a Contact out separately from push.
+
+You route deep links yourself: when a button is tapped the SDK reports the click and closes the message, and your listener receives the button (including its `deepLink`). The SDK never opens a link. To draw the message yourself, set a presenter.
+
+```kotlin
+ComRaid.addInAppMessageListener(object : InAppMessageListener {
+  override fun didClick(message: InAppMessage, button: InAppButton) {
+    button.deepLink?.let { router.open(it) }
+  }
+})
+```
+
+#### `setInAppMessagePresenter(presenter: InAppMessagePresenter?)`
+
+Draw In-app messages yourself. While a presenter is set the SDK draws nothing: `present(message, handle, triggers)` is called instead, and you report what happened through the handle. Pass `null` to return to the SDK layouts. May be called before `configure`.
+
+| Handle method | Meaning |
+|---------------|---------|
+| `impression()` | The message is on screen. Recorded once. |
+| `clicked(buttonId)` | The user tapped that button. Unknown ids are ignored. |
+| `dismissed()` | The user closed it. Recorded once. If a button was tapped first, the click is the outcome: listeners still see the message close, but no dismissal is recorded. |
+
+A Dashboard Test send reaches the presenter too (`message.isTest`); the handle makes no ACKs for it. If your presenter throws, the message is not consumed and is offered again later.
+
+#### `addInAppMessageListener(listener: InAppMessageListener)`
+
+Observe `willDisplay`, `didDisplay`, `willDismiss`, `didDismiss` and `didClick(message, button)`. A listener only observes: it cannot change or suppress a message. Every method has a no-op default.
+
+#### `removeInAppMessageListener(listener: InAppMessageListener)`
+
+Stop observing.
+
+#### `addTrigger(key: String, value: String)`
+
+Set a local trigger. Triggers stay on the device and are passed to your presenter. They do not yet decide which message is shown: ComRaid messages carry no trigger rules.
+
+#### `addTriggers(triggers: Map<String, String>)`
+
+Set several triggers at once.
+
+#### `removeTrigger(key: String)`
+
+Remove one trigger.
+
+#### `clearTriggers()`
+
+Remove all triggers.
+
+#### `getTriggers(): Map<String, String>`
+
+The triggers currently set.
+
+#### `setInAppMessagesPaused(paused: Boolean)`
+
+Pause or resume showing In-app messages on this device. A message waits while paused and shows after you resume.
+
+#### `isInAppMessagesPaused(): Boolean`
+
+Whether showing is paused.
+
+#### `optOutInApp()`
+
+Opt this Contact out of In-app messages. This is the `in_app` channel and is independent of push `optOut()`. Cached messages stop showing at once. Like `optOut()`, call it from a background thread.
+
+#### `optInInApp()`
+
+Opt this Contact back in. Call it from a background thread.
+
+### Live updates
+
+A Live activity puts one thing in the notification shade that changes for hours: a delivery, a ride, a score. On Android it is a **live update**: an ongoing notification that the SDK draws and updates in place. Your server starts and updates it through the ComRaid API (`POST /activities`, `POST /activities/{activity_id}/updates`); there is nothing to build in your app and no method to call to show it.
+
+- **Receiving:** live updates arrive as FCM data messages through `ComraidMessagingService`. If you extend it or use your own `FirebaseMessagingService`, call `super.onMessageReceived(message)` so the SDK sees them. They are never delivered to your receive listeners as ordinary messages.
+- **Drawing:** one ongoing notification per `activity_id`, on the SDK's own **Live updates** channel (low importance, so updates do not ring). It shows the title, body, a progress bar when `progress` is sent, and `status_text`. Tapping it opens your app.
+- **Android 16 and later:** it uses the platform progress style, shows the status text as the status chip, and asks to be promoted to a live update. Promotion is up to the system and the user's per-app setting. Below Android 16 it is a plain ongoing notification with a progress bar.
+- **Permission:** it needs the same notification permission as any notification (`POST_NOTIFICATIONS` on Android 13 and later). With it denied or notifications turned off, nothing is drawn.
+- **Ending:** when your server ends the activity, a final title and body (if sent) stay as a normal notification the user can clear, gone after 10 minutes; with none, the notification is removed. An ongoing live update also clears itself after 8 hours, the longest an activity can run.
+- **Swiping it away:** the SDK stops drawing that activity on this device (later updates for it are ignored) and tells ComRaid, so the server stops sending updates to this device. The activity goes on for the Contact's other devices.
+
+#### `liveActivities(): List<ComRaidLiveActivity>`
+
+The Live activities showing on this device as ongoing live updates, as `ComRaidLiveActivity(id, type)`. A finished activity (only its final state is left) is not listed. Empty before `configure`.
+
+#### `endLiveActivity(activityId: String): Boolean`
+
+End a showing Live activity from your app. It disappears at once and stays off this device; ComRaid is told it ended here, in the background. Returns `false` when it is not showing. The activity itself goes on for the Contact's other devices until your server ends it.
+
 ### Local schedule and timers
 
 Exact alarms are opt-in: the host must declare the applicable exact-alarm permission, satisfy store policy, and obtain system access. ComRaid defaults to inexact alarms and never adds an exact-alarm permission to the library manifest. Boot restoration needs `ComRaid.configure` from `Application.onCreate` before the boot receiver can restore schedules.
@@ -414,6 +503,10 @@ If a push names a category channel this device hasn't created yet, the SDK syncs
 | `SchedulePrecision` / `FallbackPolicy` | Exact vs inexact; fail vs fall back. |
 | `ComRaidCapabilities` | `notificationsEnabled`, `exactAlarmsAvailable`. |
 | `DeviceProperties` | Overrides for auto-collected Properties on register / token / session. |
+| `InAppMessage` | An In-app message: `id`, `layout`, `title`, `body`, `imageUrl`, `buttons`, display window (`startAtMillis`, `endAtMillis`) and `isTest`. |
+| `InAppButton` | `id`, `label` and optional `deepLink` (your app routes it). |
+| `InAppLayout` | `MODAL`, `BANNER_TOP`, `BANNER_BOTTOM`, `FULLSCREEN`. |
+| `InAppMessageHandle` / `InAppMessagePresenter` / `InAppMessageListener` | Report outcomes, draw messages yourself, observe messages. |
 
 ## Errors
 
